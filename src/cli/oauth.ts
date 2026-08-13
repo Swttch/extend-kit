@@ -1,4 +1,4 @@
-import type { ClaudeCodeClient } from '../api/index.js';
+import type { ClaudeCodeClient } from '../battery/api/index.js';
 
 function printJson(data: unknown): void {
   console.log(JSON.stringify(data, null, 2));

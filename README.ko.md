@@ -1,8 +1,19 @@
-# claude-code-battery
+# @swttch/extend-kit
 
 [English](README.md)
 
-Claude Code의 내부 API를 래핑한 TypeScript SDK 및 CLI 패키지입니다. Claude Code 사용자의 API 사용량 및 계정 정보를 프로그래매틱하게 접근할 수 있습니다.
+[Swttch](https://github.com/Swttch/swttch)가 필요로 하지만 플러그인 번들 안에 넣을 수 없어, 사용자 머신에 따로 설치되는 도구들의 모음입니다. 각 도구는 터미널에서든 라이브러리로든 단독으로 쓸 수 있으며, 플러그인은 그 사용자 중 하나일 뿐입니다.
+
+| 도구 | 번들에 못 들어가는 이유 |
+| --- | --- |
+| **battery** | *사용자 본인의* 머신에 저장된 Claude Code 로그인 정보(keychain 또는 자격증명 파일)를 읽어야 합니다 |
+| **stt** | 예정. 플러그인이 실어 나를 수 없는 네이티브 바이너리가 필요합니다 |
+
+## battery
+
+Claude Code의 내부 API를 래핑한 TypeScript SDK 및 CLI입니다. Claude Code 사용자의 API 사용량 및 계정 정보를 프로그래매틱하게 접근할 수 있습니다.
+
+> **`claude-code-battery`에서 옮겨오시나요?** import만 `@swttch/extend-kit`으로 바꾸면 나머지는 그대로입니다 — export 목록과 `ccb` 명령은 변경되지 않았습니다. 기존 패키지도 계속 동작하며, 이제 이 패키지를 재노출합니다.
 
 ## 주의사항
 
@@ -13,7 +24,7 @@ Claude Code의 내부 API를 래핑한 TypeScript SDK 및 CLI 패키지입니다
 ## 설치
 
 ```bash
-npm install claude-code-battery
+npm install @swttch/extend-kit
 ```
 
 Node.js 버전 20 이상이 필요합니다.
@@ -23,7 +34,7 @@ Node.js 버전 20 이상이 필요합니다.
 ### SDK 사용
 
 ```typescript
-import { ClaudeCodeClient } from 'claude-code-battery';
+import { ClaudeCodeClient } from '@swttch/extend-kit';
 
 // 토큰 불필요 — 첫 API 호출 시 자동으로 크레덴셜을 읽어옵니다
 const client = new ClaudeCodeClient();
@@ -181,7 +192,7 @@ const profile = await client.oauth.getProfile();
 SDK에서 발생하는 모든 에러는 `CcbError` 인스턴스이며, 기계가 읽을 수 있는 `code`와 선택적인 `hint`를 포함합니다.
 
 ```typescript
-import { ClaudeCodeClient, CcbError } from 'claude-code-battery';
+import { ClaudeCodeClient, CcbError } from '@swttch/extend-kit';
 
 try {
   const usage = await client.oauth.getUsage();

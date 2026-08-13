@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { getCredentials, getAccessToken } from '../auth/index.js';
-import { ClaudeCodeClient } from '../api/index.js';
+import { getCredentials, getAccessToken } from '../battery/auth/index.js';
+import { ClaudeCodeClient } from '../battery/api/index.js';
 import { oauthCommand } from './oauth.js';
-import { CcbError } from '../errors.js';
+import { CcbError } from '../battery/errors.js';
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +33,7 @@ async function run(): Promise<void> {
   }
 
   if (!module || flags.has('-h') || flags.has('--help')) {
-    console.log(`ccb v${VERSION} — Claude Code Battery CLI
+    console.log(`ccb v${VERSION} — Claude Code account CLI, from @swttch/extend-kit
 
 Usage: ccb <command> [options]
 

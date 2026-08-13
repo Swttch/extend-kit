@@ -1,8 +1,19 @@
-# claude-code-battery
+# @swttch/extend-kit
 
 [한국어](README.ko.md)
 
-A TypeScript SDK and CLI package that wraps the internal API of Claude Code. This allows programmatic access to API usage metrics and account information for Claude Code users.
+The companion tools [Swttch](https://github.com/Swttch/swttch) needs but cannot ship inside the plugin bundle, so they install on your machine instead. Each one is usable on its own — from a terminal or as a library — and the plugin is simply one caller among others.
+
+| Tool | Why it lives outside the bundle |
+| --- | --- |
+| **battery** | Reads the Claude Code login stored on *your* machine (keychain, or a credentials file) |
+| **stt** | Planned. Needs native binaries the plugin cannot carry |
+
+## battery
+
+A TypeScript SDK and CLI that wraps the internal API of Claude Code. This allows programmatic access to API usage metrics and account information for Claude Code users.
+
+> **Moving from `claude-code-battery`?** Change the import to `@swttch/extend-kit` and everything else stays the same — the exports and the `ccb` command are unchanged. The old package still works; it now re-exports this one.
 
 ## Important Notes
 
@@ -13,7 +24,7 @@ A TypeScript SDK and CLI package that wraps the internal API of Claude Code. Thi
 ## Installation
 
 ```bash
-npm install claude-code-battery
+npm install @swttch/extend-kit
 ```
 
 Node.js version 20 or higher is required.
@@ -23,7 +34,7 @@ Node.js version 20 or higher is required.
 ### SDK Usage
 
 ```typescript
-import { ClaudeCodeClient } from 'claude-code-battery';
+import { ClaudeCodeClient } from '@swttch/extend-kit';
 
 // No token needed — credentials are resolved automatically on first API call
 const client = new ClaudeCodeClient();
@@ -181,7 +192,7 @@ const profile = await client.oauth.getProfile();
 All errors thrown by the SDK are instances of `CcbError`, which includes a machine-readable `code` and optional `hint`.
 
 ```typescript
-import { ClaudeCodeClient, CcbError } from 'claude-code-battery';
+import { ClaudeCodeClient, CcbError } from '@swttch/extend-kit';
 
 try {
   const usage = await client.oauth.getUsage();

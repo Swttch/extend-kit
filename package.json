@@ -1,10 +1,20 @@
 {
-  "name": "claude-code-battery",
-  "version": "0.2.0",
-  "description": "SDK and CLI for Claude Code internal API",
+  "name": "@swttch/extend-kit",
+  "version": "0.3.0",
+  "description": "Companion tools for Swttch that live outside the plugin bundle: Claude Code account/usage SDK and the ccb CLI.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./battery": {
+      "types": "./dist/battery/index.d.ts",
+      "default": "./dist/battery/index.js"
+    }
+  },
   "bin": {
     "ccb": "dist/cli/index.js"
   },
@@ -17,6 +27,7 @@
   "keywords": [
     "claude",
     "claude-code",
+    "swttch",
     "sdk",
     "cli"
   ],
@@ -24,7 +35,10 @@
   "author": "yhk1038",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Swttch/claude-code-battery.git"
+    "url": "git+https://github.com/Swttch/extend-kit.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist"

@@ -1,14 +1,19 @@
-export { CcbError } from './errors.js';
-export { getCredentials, getAccessToken, isTokenExpired, isApiKeyAuth } from './auth/index.js';
-export type { ClaudeCredentials, ClaudeOAuthCredentials, ApiKeyAuth, ClientAuth } from './auth/index.js';
+/**
+ * @swttch/extend-kit — the tools Swttch needs that cannot ship inside the
+ * plugin bundle, and so are installed on the user's own machine instead.
+ *
+ * Two things force a tool out here: it needs the user's local credentials
+ * (battery reads the Claude Code login), or it needs native binaries the
+ * plugin cannot carry (speech-to-text). Both are usable on their own, from a
+ * terminal or as a library — the plugin is just one caller among others.
+ *
+ * Everything battery used to export is re-exported flat, unprefixed, so code
+ * written against `claude-code-battery` keeps compiling after switching the
+ * import to this package.
+ */
 
-export { ClaudeCodeClient, OAuthApi } from './api/index.js';
-export type {
-  UsageResponse,
-  UsageBucket,
-  ExtraUsage,
-  ProfileResponse,
-  AccountInfo,
-  OrganizationInfo,
-  ApplicationInfo,
-} from './api/index.js';
+export * from './battery/index.js';
+
+// Namespaced access, for callers who would rather be explicit about which
+// tool they are reaching for — `import { battery } from '@swttch/extend-kit'`.
+export * as battery from './battery/index.js';
