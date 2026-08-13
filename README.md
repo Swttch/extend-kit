@@ -7,7 +7,7 @@ The companion tools [Swttch](https://github.com/Swttch/swttch) needs but cannot 
 | Tool | Why it lives outside the bundle |
 | --- | --- |
 | **battery** | Reads the Claude Code login stored on *your* machine (keychain, or a credentials file) |
-| **stt** | Planned. Needs native binaries the plugin cannot carry |
+| **stt** | Dictation sends your OAuth token, and a JetBrains plugin may not handle credentials |
 
 ## battery
 
@@ -395,6 +395,67 @@ $ ccb oauth usage --json
   }
 }
 ```
+
+## stt
+
+Live dictation against the same speech service the other Claude Code clients use. It authenticates with the Claude Code login already on this machine — the same one `battery` reads — so there is no separate API key and no separate bill.
+
+```typescript
+import { stt } from '@swttch/extend-kit';
+
+const stream = await stt.openSpeechToTextStream({
+  onTranscript: (text, isFinal) => {
+    // isFinal false → a live guess that will be replaced; show it, don't keep it.
+    // isFinal true  → settled text; append it.
+    if (isFinal) console.log(text);
+  },
+  onError: (message, info) => {
+    // info.fatal means retrying won't help (e.g. the token was rejected).
+    console.error(message);
+  },
+});
+
+// Feed raw 16-bit PCM, 16 kHz, mono. Audio sent before the socket finishes
+// opening is buffered, so you can start recording immediately.
+stream.sendAudio(pcmChunk);
+
+// Closing waits briefly for the last words, then resolves.
+await stream.close();
+```
+
+### Audio format
+
+The service accepts one format, and sending anything else yields silence rather than an error:
+
+| | |
+| --- | --- |
+| Encoding | `linear16` (raw signed 16-bit PCM, little-endian) |
+| Sample rate | 16000 Hz |
+| Channels | 1 (mono) |
+
+`stt.AUDIO_FORMAT` carries these values if you need them at runtime.
+
+### Options
+
+```typescript
+await stt.openSpeechToTextStream(handlers, {
+  language: 'ko',                       // BCP-47; defaults to 'en'
+  extraKeyterms: ['Swttch', 'JCEF'],    // bias recognition toward your vocabulary
+  typedInterims: true,                  // also stream partial guesses
+});
+```
+
+A general speech model mishears technical words — "MCP" becomes "MTP". A default set of programming terms is always applied; `extraKeyterms` adds to it.
+
+### Checking availability first
+
+```typescript
+if (!(await stt.isSpeechToTextAvailable())) {
+  // Claude Code is not logged in on this machine.
+}
+```
+
+> **Note**: this endpoint is not part of Anthropic's documented API. It may change without warning. The client ignores message types it does not recognise rather than failing, but a larger change could still break dictation.
 
 ## Development
 

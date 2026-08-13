@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 도구 | 번들링 불가 사유 |
 |------|-----------------|
 | `battery` | 사용자 머신의 Claude Code 로그인 자격증명(keychain/파일)을 읽어야 함 |
-| `stt` (예정) | 네이티브 바이너리·모델 파일이 필요해 플러그인이 실어 나를 수 없음 |
+| `stt` | 받아쓰기가 OAuth 토큰을 전송하는데, JetBrains 플러그인은 자격증명을 다룰 수 없음 |
 
 번들링 가능한 기능이면 여기 오면 안 되고, 플러그인 본체에 넣는다.
 
@@ -37,6 +37,18 @@ src/
 - 플러그인의 사용량 패널이 `ccb_missing` 으로 죽는다
 
 패키지 이름이 무엇으로 바뀌든 `bin.ccb` 는 유지한다.
+
+## STT 구현 시 알아야 할 것 (실측으로 확인함)
+
+`wss://api.anthropic.com/api/ws/speech_to_text/voice_stream` 는 **미문서 엔드포인트**다. 아래는 붙여서 확인한 실제 동작이며, 문서가 아니라 관찰이다.
+
+1. **오디오 형식이 틀리면 에러가 아니라 무음이다.** `linear16` / 16kHz / mono 가 아니면 조용히 아무것도 안 돌아온다. 디버깅할 때 "연결은 되는데 전사가 없다"면 형식부터 의심할 것.
+2. **`TranscriptText` 는 누적 텍스트를 갱신해 보내며, 뒤로 후퇴하기도 한다.** `"Hello. This is a test"` 뒤에 `"Hello."` 가 올 수 있다. 그래서 `pending` 은 **가장 긴 것**을 유지한다. 마지막 값을 쓰면 내용을 잃는다.
+3. **`TranscriptEndpoint` 에는 `data` 가 없다.** "여기서 확정"이라는 신호일 뿐이라, 텍스트는 그때까지 모아둔 `pending` 에서 꺼내야 한다.
+4. **소켓이 열리기 전 오디오는 버퍼링해야 한다.** `openSpeechToTextStream()` 이 반환된 시점에 소켓은 아직 CONNECTING 이다. 버퍼링 없이 곧바로 `sendAudio` 하면 **첫 문장이 통째로 사라진다**(구현 중 실제로 겪음).
+5. **인증은 battery 와 같은 OAuth 토큰**이다. 그래서 두 도구가 같은 패키지에 있는 것이 자연스럽다.
+
+VS Code 확장이 정의한 UX 계약(참고용): `voice.mode` 는 `hold`(기본, 누르는 동안 말하기) / `tap`(눌러서 시작, 다시 눌러 종료+제출), `voice.autoSubmit` 은 hold 에서 떼면 자동 전송.
 
 ## 하위호환 (claude-code-battery 사용자)
 

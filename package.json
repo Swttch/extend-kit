@@ -1,6 +1,6 @@
 {
   "name": "@swttch/extend-kit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Companion tools for Swttch that live outside the plugin bundle: Claude Code account/usage SDK and the ccb CLI.",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,7 +13,12 @@
     "./battery": {
       "types": "./dist/battery/index.d.ts",
       "default": "./dist/battery/index.js"
-    }
+    },
+    "./stt": {
+      "types": "./dist/stt/index.d.ts",
+      "default": "./dist/stt/index.js"
+    },
+    "./cli": "./dist/cli/index.js"
   },
   "bin": {
     "ccb": "dist/cli/index.js"
@@ -22,7 +27,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "tsc --noEmit",
-    "test": "node --test dist/**/*.test.js"
+    "test": "node --test \"dist/**/*.test.js\""
   },
   "keywords": [
     "claude",
@@ -41,13 +46,20 @@
     "access": "public"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map"
   ],
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/ws": "^8.18.1",
     "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }

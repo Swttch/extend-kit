@@ -1,0 +1,59 @@
+# Publishes @swttch/extend-kit to npm when a version tag is pushed.
+#
+# Authentication is npm trusted publishing (OIDC): GitHub itself vouches for
+# this workflow, so there is no npm token to store, rotate, or leak, and no
+# one-time password to type. npm requires this repository to be registered as
+# a trusted publisher on the package first.
+#
+# Release flow:
+#   npm version patch   # or minor / major — writes package.json and tags
+#   git push --follow-tags
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Lets us re-run a failed publish without inventing a throwaway tag.
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for OIDC — this is what replaces the npm token.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      # npm's OIDC support landed in 11.5.1; ubuntu-latest ships an older npm
+      # with Node 22, so we upgrade rather than depend on the runner image.
+      - name: Use an npm that speaks OIDC
+        run: npm install -g npm@latest
+
+      - run: npm ci
+
+      # The package is the thing being shipped — it must build and pass before
+      # it goes out, not after someone reports it broken.
+      - run: npm run build
+      - run: npm test
+
+      # Refuses to publish if the tag and package.json disagree, which is the
+      # one mistake that silently ships the wrong version.
+      - name: Check the tag matches package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$TAG" != "$PKG" ]; then
+            echo "Tag v$TAG does not match package.json $PKG" >&2
+            exit 1
+          fi
+          echo "Publishing $PKG"
+
+      - run: npm publish

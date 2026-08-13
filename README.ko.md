@@ -7,7 +7,7 @@
 | 도구 | 번들에 못 들어가는 이유 |
 | --- | --- |
 | **battery** | *사용자 본인의* 머신에 저장된 Claude Code 로그인 정보(keychain 또는 자격증명 파일)를 읽어야 합니다 |
-| **stt** | 예정. 플러그인이 실어 나를 수 없는 네이티브 바이너리가 필요합니다 |
+| **stt** | 받아쓰기는 OAuth 토큰을 전송하는데, JetBrains 플러그인은 자격증명을 다룰 수 없습니다 |
 
 ## battery
 
@@ -395,6 +395,67 @@ $ ccb oauth usage --json
   }
 }
 ```
+
+## stt
+
+다른 Claude Code 클라이언트들이 쓰는 것과 동일한 음성 서비스로 실시간 받아쓰기를 합니다. 이 머신에 이미 있는 Claude Code 로그인(`battery`가 읽는 그 로그인)으로 인증하므로, 별도의 API 키도 별도의 과금도 없습니다.
+
+```typescript
+import { stt } from '@swttch/extend-kit';
+
+const stream = await stt.openSpeechToTextStream({
+  onTranscript: (text, isFinal) => {
+    // isFinal false → 곧 교체될 추정값입니다. 보여주되 쌓아두지 마세요.
+    // isFinal true  → 확정된 텍스트입니다. 이어붙이세요.
+    if (isFinal) console.log(text);
+  },
+  onError: (message, info) => {
+    // info.fatal 이면 재시도해도 소용없습니다(예: 토큰이 거부됨).
+    console.error(message);
+  },
+});
+
+// 16비트 PCM, 16kHz, 모노를 그대로 넣습니다. 소켓이 열리기 전에 보낸 오디오는
+// 버퍼링되므로, 곧바로 녹음을 시작해도 앞부분이 잘리지 않습니다.
+stream.sendAudio(pcmChunk);
+
+// 닫을 때 마지막 발화를 잠시 기다린 뒤 종료합니다.
+await stream.close();
+```
+
+### 오디오 형식
+
+서비스는 한 가지 형식만 받으며, 다른 것을 보내면 에러가 아니라 **무음으로 처리**됩니다.
+
+| | |
+| --- | --- |
+| 인코딩 | `linear16` (부호 있는 16비트 PCM, 리틀 엔디언) |
+| 샘플레이트 | 16000 Hz |
+| 채널 | 1 (모노) |
+
+런타임에 이 값이 필요하면 `stt.AUDIO_FORMAT`에 들어 있습니다.
+
+### 옵션
+
+```typescript
+await stt.openSpeechToTextStream(handlers, {
+  language: 'ko',                       // BCP-47. 기본값은 'en'
+  extraKeyterms: ['Swttch', 'JCEF'],    // 사용하는 어휘 쪽으로 인식을 유도
+  typedInterims: true,                  // 확정 전 추정값도 함께 스트리밍
+});
+```
+
+일반 음성 모델은 기술 용어를 잘못 알아듣습니다("MCP"를 "MTP"로). 기본 프로그래밍 용어 목록이 항상 적용되며, `extraKeyterms`는 거기에 추가됩니다.
+
+### 사용 가능 여부 먼저 확인하기
+
+```typescript
+if (!(await stt.isSpeechToTextAvailable())) {
+  // 이 머신에 Claude Code가 로그인되어 있지 않습니다.
+}
+```
+
+> **참고**: 이 엔드포인트는 Anthropic이 문서화한 API가 아닙니다. 예고 없이 바뀔 수 있습니다. 클라이언트는 모르는 메시지 타입을 실패로 처리하지 않고 무시하지만, 더 큰 변경이 생기면 받아쓰기가 깨질 수 있습니다.
 
 ## 개발
 

@@ -17,3 +17,9 @@ export * from './battery/index.js';
 // Namespaced access, for callers who would rather be explicit about which
 // tool they are reaching for — `import { battery } from '@swttch/extend-kit'`.
 export * as battery from './battery/index.js';
+
+// Speech-to-text is namespace-only. Its names (`openSpeechToTextStream`,
+// `AUDIO_FORMAT`) are generic enough that exporting them flat would collide
+// with a caller's own, and unlike battery it has no legacy flat imports to
+// preserve — `import { stt } from '@swttch/extend-kit'`.
+export * as stt from './stt/index.js';
