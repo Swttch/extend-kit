@@ -3,6 +3,7 @@
 import { getCredentials, getAccessToken } from '../battery/auth/index.js';
 import { ClaudeCodeClient } from '../battery/api/index.js';
 import { oauthCommand } from './oauth.js';
+import { getAccountCredentials } from './account-credentials.js';
 import { CcbError } from '../battery/errors.js';
 
 import { readFileSync } from 'node:fs';
@@ -17,15 +18,24 @@ const args = process.argv.slice(2);
 const command = args.filter((a: string) => !a.startsWith('-'));
 const flags = new Set(args.filter((a: string) => a.startsWith('-')));
 const jsonOutput = flags.has('--json');
+const accountFile = args.find(arg => arg.startsWith('--account-file='))?.slice('--account-file='.length);
 
 async function createClient(): Promise<ClaudeCodeClient> {
-  const credentials = await getCredentials();
+  const credentials = accountFile ? await getAccountCredentials(accountFile) : await getCredentials();
   const token = getAccessToken(credentials);
   return new ClaudeCodeClient(token);
 }
 
 async function run(): Promise<void> {
   const [module, ...subcommand] = command;
+
+  if (flags.has('--capabilities')) {
+    console.log(JSON.stringify({ capabilities: ['oauth.usage.account-file'] }));
+    return;
+  }
+  if (args.some(arg => arg.startsWith('--account-file')) && (!accountFile || module !== 'oauth' || subcommand[0] !== 'usage')) {
+    throw new CcbError('Use oauth usage --account-file=<snapshot path>.', 'invalid_argument');
+  }
 
   if (flags.has('-v') || flags.has('--version')) {
     console.log(VERSION);
@@ -42,6 +52,8 @@ Commands:
   oauth profile    Show account profile
 
 Options:
+  --account-file=<path>  Read usage for a CCG saved-account snapshot (no account switch)
+  --capabilities   Output supported CLI capabilities as JSON
   --json           Output as JSON
   -h, --help       Show help
   -v, --version    Show version`);

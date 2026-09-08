@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { ClaudeCredentials } from './types.js';
 
@@ -11,11 +12,11 @@ async function getOsUsername(): Promise<string> {
   return stdout.trim();
 }
 
-export async function readKeychainCredentials(): Promise<ClaudeCredentials> {
+export async function readKeychainCredentials(configDir?: string): Promise<ClaudeCredentials> {
   const account = await getOsUsername();
   const { stdout } = await execFileAsync('security', [
     'find-generic-password',
-    '-s', SERVICE_NAME,
+    '-s', configDir ? `${SERVICE_NAME}-${createHash('sha256').update(configDir).digest('hex').slice(0, 8)}` : SERVICE_NAME,
     '-a', account,
     '-w',
   ]);

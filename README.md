@@ -504,3 +504,16 @@ MIT
 ## Author
 
 yhk1038
+
+## Saved-account usage (CLI)
+
+`ccb --capabilities --json` reports `oauth.usage.account-file` when supported.
+`ccb oauth usage --account-file="/path/to/account-snapshot.json" --json` reads a
+CCG account snapshot (`credentials` is a JSON string, `oauthAccount.emailAddress`
+identifies the account) and queries that account without switching the live login.
+Credential values are never command arguments or CLI output. The CLI may use a
+newer live credential when the live email matches the selected snapshot; otherwise
+it uses the snapshot. Expired tokens return `token_expired`. No token refresh,
+credential writes, caching, retries or automatic account switching are performed.
+The caller owns process timeout and recovery policy. Plain `ccb oauth usage`
+retains its existing behaviour.
