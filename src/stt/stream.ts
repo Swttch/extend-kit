@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { getCredentials, getAccessToken } from '../battery/auth/index.js';
 import { CcbError } from '../battery/errors.js';
+import { proxyAgentFor } from '../proxy.js';
 import { DEFAULT_KEYTERMS, packKeyterms } from './keyterms.js';
 import {
   AUDIO_FORMAT,
@@ -62,13 +63,20 @@ export async function openSpeechToTextStream(
 
   const keyterms = packKeyterms([...DEFAULT_KEYTERMS, ...(options.extraKeyterms ?? [])]);
 
-  const socket = new WebSocket(`${VOICE_STREAM_URL}?${query.toString()}`, {
+  const streamUrl = `${VOICE_STREAM_URL}?${query.toString()}`;
+
+  const socket = new WebSocket(streamUrl, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'x-app': 'swttch',
       'anthropic-client-platform': 'claude_code_swttch',
       ...(keyterms ? { 'x-config-keyterms': keyterms } : {}),
     },
+    // A WebSocket opens as an HTTP upgrade, so it needs the same proxy the usage
+    // requests use. Without this, dictation is dead on any machine that reaches
+    // the internet only through a proxy, even though the usage panel works.
+    // undefined here means "no proxy configured" and ws connects directly.
+    agent: proxyAgentFor(streamUrl),
   });
 
   let keepalive: NodeJS.Timeout | null = null;

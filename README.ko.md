@@ -29,6 +29,23 @@ npm install @swttch/extend-kit
 
 Node.js 버전 20 이상이 필요합니다.
 
+## 프록시 지원
+
+프록시를 거쳐야 인터넷에 나가는 환경이라면, API 요청과 받아쓰기 모두 그 프록시를 지납니다. 읽는 환경변수는 curl과 `claude` CLI가 이미 읽는 것과 같으므로, 그 도구들이 동작하는 머신이라면 따로 설정할 것이 없습니다.
+
+| 환경변수 | 적용 대상 |
+|----------|-----------|
+| `HTTPS_PROXY` / `https_proxy` | `https://` 와 `wss://` 연결 |
+| `HTTP_PROXY` / `http_proxy` | `http://` 와 `ws://` 연결 |
+| `ALL_PROXY` / `all_proxy` | 위 둘이 없을 때 사용 |
+| `NO_PROXY` / `no_proxy` | 프록시를 거치지 않을 호스트. `*` 는 프록시를 통째로 끕니다 |
+
+프록시 URL은 `http://`, `https://`, `socks://`, `socks4://`, `socks4a://`, `socks5://`, `socks5h://` 를 지원합니다. 따라서 사내 프록시뿐 아니라 `ssh -D` 로 연 터널도 그대로 동작합니다. URL에 담긴 자격증명(`http://사용자:비밀번호@호스트:포트`)은 프록시 인증에 사용됩니다.
+
+`NO_PROXY` 는 통용되는 규칙을 따릅니다. 쉼표로 구분하고, 맨 앞의 점은 무시하며, 도메인만 적으면 그 호스트와 하위 도메인이 모두 해당됩니다. 뒤에 `:포트` 를 붙이면 그 포트에만 적용됩니다.
+
+프록시가 아니라 게이트웨이를 통해 API에 접속한다면 `ANTHROPIC_BASE_URL` 을 설정하십시오. `claude` CLI가 읽는 환경변수와 같습니다.
+
 ## 빠른 시작
 
 ### SDK 사용
@@ -129,7 +146,7 @@ if (isTokenExpired(credentials)) {
 
 API 호출을 위한 클라이언트 클래스입니다. 서브모듈을 통해 API 엔드포인트에 접근합니다.
 
-#### `constructor(auth?: string | { apiKey: string })`
+#### `constructor(auth?: string | { apiKey: string }, options?: ClaudeCodeClientOptions)`
 
 OAuth 접근 토큰이나 API Key로 클라이언트를 초기화합니다. 인수를 전달하지 않으면 자동으로 크레덴셜을 읽어옵니다.
 
@@ -142,7 +159,16 @@ const client = new ClaudeCodeClient(myOAuthAccessToken);
 
 // API Key
 const client = new ClaudeCodeClient({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// API에 직접 붙지 않고 게이트웨이를 거치는 경우
+const client = new ClaudeCodeClient(myOAuthAccessToken, { baseUrl: 'https://gateway.internal' });
 ```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `baseUrl` | `ANTHROPIC_BASE_URL`, 없으면 `https://api.anthropic.com` | 요청을 보낼 API 주소 |
+
+프록시 설정은 환경변수에서 읽으므로 여기에 옵션으로 넘길 필요가 없습니다. [프록시 지원](#프록시-지원)을 참고하십시오.
 
 #### `oauth: OAuthApi`
 
@@ -214,6 +240,8 @@ try {
 | `token_expired` | OAuth 토큰이 만료됨 | `claude login` 명령 실행으로 토큰 갱신 |
 | `api_error` | API 요청 실패 (HTTP 상태 포함) | — |
 | `unsupported_platform` | 지원하지 않는 플랫폼 | — |
+| `network_error` | API에 접속하지 못함 | 프록시를 거친 경우 그 사실을 알려줍니다 |
+| `invalid_proxy` | 프록시 환경변수가 URL이 아니거나 지원하지 않는 스킴 | 기대하는 형식을 알려줍니다 |
 
 ## 타입 정의
 

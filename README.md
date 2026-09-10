@@ -29,6 +29,31 @@ npm install @swttch/extend-kit
 
 Node.js version 20 or higher is required.
 
+## Proxy Support
+
+If your machine reaches the internet through a proxy, both the API requests and
+dictation go through it. The variables are the ones curl and the `claude` CLI
+already read, so a machine set up for those needs nothing extra here.
+
+| Variable | Applies to |
+| --- | --- |
+| `HTTPS_PROXY` / `https_proxy` | `https://` and `wss://` connections |
+| `HTTP_PROXY` / `http_proxy` | `http://` and `ws://` connections |
+| `ALL_PROXY` / `all_proxy` | Used when neither of the above is set |
+| `NO_PROXY` / `no_proxy` | Hosts to connect to directly. `*` disables the proxy entirely |
+
+`http://`, `https://`, `socks://`, `socks4://`, `socks4a://`, `socks5://` and
+`socks5h://` proxy URLs are supported, so an `ssh -D` tunnel works as well as a
+corporate egress proxy. Credentials embedded in the URL
+(`http://user:pass@host:port`) are used for proxy authentication.
+
+`NO_PROXY` follows the usual conventions: a comma-separated list, a leading dot
+ignored, a bare entry matching that host and its subdomains, and an optional
+`:port` to limit the entry to one port.
+
+If you talk to the API through a gateway rather than a proxy, set
+`ANTHROPIC_BASE_URL` — the same variable the `claude` CLI reads.
+
 ## Quick Start
 
 ### SDK Usage
@@ -129,7 +154,7 @@ if (isTokenExpired(credentials)) {
 
 A client class for making API calls. Access API endpoints through sub-modules.
 
-#### `constructor(auth?: string | { apiKey: string })`
+#### `constructor(auth?: string | { apiKey: string }, options?: ClaudeCodeClientOptions)`
 
 Initializes the client with OAuth access token or API Key. If no argument is provided, credentials are resolved automatically.
 
@@ -142,7 +167,16 @@ const client = new ClaudeCodeClient(myAccessToken);
 
 // API Key
 const client = new ClaudeCodeClient({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Talk to a gateway instead of the API directly
+const client = new ClaudeCodeClient(myAccessToken, { baseUrl: 'https://gateway.internal' });
 ```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `baseUrl` | `ANTHROPIC_BASE_URL`, else `https://api.anthropic.com` | API origin to send requests to |
+
+Proxy settings are read from the environment and need no option here — see [Proxy Support](#proxy-support).
 
 #### `oauth: OAuthApi`
 
@@ -214,6 +248,8 @@ try {
 | `token_expired` | OAuth token has expired | Run `claude login` to refresh your token |
 | `api_error` | API request failed (includes HTTP status) | — |
 | `unsupported_platform` | Platform not supported | — |
+| `network_error` | The API could not be reached | Names the proxy when one was in use |
+| `invalid_proxy` | A proxy variable is not a URL, or its scheme is not supported | Shows the expected form |
 
 ## Type Definitions
 

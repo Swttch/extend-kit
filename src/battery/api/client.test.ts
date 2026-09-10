@@ -1,155 +1,166 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer, type Server, type IncomingMessage } from 'node:http';
+import { AddressInfo } from 'node:net';
 import { ClaudeCodeClient } from './client.js';
 import { OAuthApi } from './oauth.js';
 
-type MockResponse = {
-  ok: boolean;
-  status: number;
-  statusText: string;
-  json: () => Promise<unknown>;
-};
-
-function makeMockResponse(overrides: Partial<MockResponse> = {}): MockResponse {
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    json: async () => ({}),
-    ...overrides,
-  };
-}
-
+/**
+ * These used to stub globalThis.fetch. The client no longer uses fetch — it
+ * cannot be routed through a proxy (see src/proxy.ts) — so the requests are made
+ * against a local server instead. That also makes the tests stricter: they now
+ * observe what actually goes over the wire rather than what was handed to a stub.
+ */
 describe('ClaudeCodeClient', () => {
-  let originalFetch: typeof globalThis.fetch;
+  let server: Server;
+  let baseUrl: string;
+  let requests: IncomingMessage[];
+  let respond: (res: import('node:http').ServerResponse) => void;
 
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
+  beforeEach(async () => {
+    requests = [];
+    respond = (res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+    };
+    server = createServer((req, res) => {
+      requests.push(req);
+      respond(res);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
+  afterEach(async () => {
+    await new Promise<void>((r) => server.close(() => r()));
   });
 
   describe('constructor', () => {
     it('accepts an explicit access token', () => {
-      const client = new ClaudeCodeClient('test-token');
-      assert.ok(client instanceof ClaudeCodeClient);
+      assert.ok(new ClaudeCodeClient('test-token') instanceof ClaudeCodeClient);
     });
 
     it('accepts no arguments', () => {
-      const client = new ClaudeCodeClient();
-      assert.ok(client instanceof ClaudeCodeClient);
+      assert.ok(new ClaudeCodeClient() instanceof ClaudeCodeClient);
     });
   });
 
   describe('.oauth', () => {
     it('returns an OAuthApi instance', () => {
-      const client = new ClaudeCodeClient('test-token');
-      assert.ok(client.oauth instanceof OAuthApi);
+      assert.ok(new ClaudeCodeClient('test-token').oauth instanceof OAuthApi);
     });
 
     it('returns the same instance on multiple accesses (lazy singleton)', () => {
       const client = new ClaudeCodeClient('test-token');
-      const first = client.oauth;
-      const second = client.oauth;
-      assert.strictEqual(first, second);
+      assert.strictEqual(client.oauth, client.oauth);
     });
   });
 
   describe('._request', () => {
     describe('when constructed with explicit token', () => {
-      it('sends GET request with Bearer token', async () => {
-        let capturedInput: RequestInfo | URL | undefined;
-        let capturedInit: RequestInit | undefined;
-
-        globalThis.fetch = async (input, init) => {
-          capturedInput = input;
-          capturedInit = init;
-          return makeMockResponse({ json: async () => ({}) }) as unknown as Response;
-        };
-
-        const client = new ClaudeCodeClient('my-access-token');
+      it('sends a GET request with the Bearer token', async () => {
+        const client = new ClaudeCodeClient('my-access-token', { baseUrl });
         await client._request('/test/path');
 
-        assert.strictEqual(capturedInput, 'https://api.anthropic.com/test/path');
-        assert.strictEqual((capturedInit?.headers as Record<string, string>)['Authorization'], 'Bearer my-access-token');
-        assert.strictEqual(capturedInit?.method, 'GET');
+        assert.strictEqual(requests.length, 1);
+        assert.strictEqual(requests[0]?.method, 'GET');
+        assert.strictEqual(requests[0]?.url, '/test/path');
+        assert.strictEqual(requests[0]?.headers.authorization, 'Bearer my-access-token');
       });
 
       it('merges additional headers', async () => {
-        let capturedHeaders: Record<string, string> | undefined;
-
-        globalThis.fetch = async (_input, init) => {
-          capturedHeaders = init?.headers as Record<string, string>;
-          return makeMockResponse() as unknown as Response;
-        };
-
-        const client = new ClaudeCodeClient('my-access-token');
+        const client = new ClaudeCodeClient('my-access-token', { baseUrl });
         await client._request('/test/path', {
           'x-custom-header': 'custom-value',
           'anthropic-beta': 'some-beta',
         });
 
-        assert.strictEqual(capturedHeaders?.['Authorization'], 'Bearer my-access-token');
-        assert.strictEqual(capturedHeaders?.['x-custom-header'], 'custom-value');
-        assert.strictEqual(capturedHeaders?.['anthropic-beta'], 'some-beta');
+        const headers = requests[0]?.headers ?? {};
+        assert.strictEqual(headers.authorization, 'Bearer my-access-token');
+        assert.strictEqual(headers['x-custom-header'], 'custom-value');
+        assert.strictEqual(headers['anthropic-beta'], 'some-beta');
       });
 
       it('returns parsed JSON on success', async () => {
         const responseBody = { id: 'user_123', email: 'test@example.com' };
-
-        globalThis.fetch = async () => {
-          return makeMockResponse({
-            ok: true,
-            status: 200,
-            json: async () => responseBody,
-          }) as unknown as Response;
+        respond = (res) => {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(responseBody));
         };
 
-        const client = new ClaudeCodeClient('my-access-token');
-        const result = await client._request<typeof responseBody>('/api/profile');
-
-        assert.deepEqual(result, responseBody);
+        const client = new ClaudeCodeClient('my-access-token', { baseUrl });
+        assert.deepEqual(await client._request('/api/profile'), responseBody);
       });
 
-      it('throws on non-ok response', async () => {
-        globalThis.fetch = async () => {
-          return makeMockResponse({
-            ok: false,
-            status: 401,
-            statusText: 'Unauthorized',
-          }) as unknown as Response;
+      it('throws on a non-ok response', async () => {
+        respond = (res) => {
+          res.writeHead(401, 'Unauthorized');
+          res.end('');
         };
 
-        const client = new ClaudeCodeClient('invalid-token');
-
+        const client = new ClaudeCodeClient('invalid-token', { baseUrl });
         await assert.rejects(
           () => client._request('/api/profile'),
-          (err: Error) => {
+          (err: unknown) => {
             assert.ok(err instanceof Error);
-            assert.ok(err.message.includes('401'));
-            assert.ok(err.message.includes('Unauthorized'));
+            assert.match(err.message, /401/);
+            assert.match(err.message, /Unauthorized/);
             return true;
           },
         );
       });
     });
 
-    describe('when constructed without token', () => {
-      // getCredentials()는 파일 시스템에서 실제 자격증명을 읽으려 시도하므로
-      // ESM 환경에서 모듈 레벨 의존성을 mock하기 어렵습니다.
-      // 자격증명이 없는 환경에서는 rejects하는 것을 확인합니다.
-      it('rejects if credentials are not available', async () => {
-        const client = new ClaudeCodeClient();
+    describe('when constructed with an API key', () => {
+      it('sends x-api-key instead of a Bearer token', async () => {
+        const client = new ClaudeCodeClient({ apiKey: 'sk-test' }, { baseUrl });
+        await client._request('/api/profile');
 
-        await assert.rejects(
-          () => client._request('/api/profile'),
-          (err: unknown) => {
-            assert.ok(err instanceof Error);
-            return true;
-          },
-        );
+        const headers = requests[0]?.headers ?? {};
+        assert.strictEqual(headers['x-api-key'], 'sk-test');
+        assert.strictEqual(headers['anthropic-version'], '2023-06-01');
+        assert.strictEqual(headers.authorization, undefined);
+      });
+    });
+
+    // There is deliberately no test here for the no-token path. It would come
+    // down to whether the machine running the suite happens to be logged into
+    // Claude Code, which is not a property of this code — and the previous
+    // version of this file only passed because the request went to the real API
+    // and came back 404. getCredentials() and its platform dispatch are covered
+    // in ../auth/index.test.ts, where they can be tested without a network.
+
+    describe('baseUrl', () => {
+      it('defaults to the real API origin', () => {
+        // Asserted through the request URL rather than a getter so the default
+        // cannot drift from what is actually requested.
+        assert.strictEqual(new ClaudeCodeClient('t')['baseUrl'], 'https://api.anthropic.com');
+      });
+
+      it('honors ANTHROPIC_BASE_URL, the variable the claude CLI reads', () => {
+        const previous = process.env.ANTHROPIC_BASE_URL;
+        process.env.ANTHROPIC_BASE_URL = 'https://gateway.internal/anthropic';
+        try {
+          assert.strictEqual(new ClaudeCodeClient('t')['baseUrl'], 'https://gateway.internal/anthropic');
+        } finally {
+          if (previous === undefined) delete process.env.ANTHROPIC_BASE_URL;
+          else process.env.ANTHROPIC_BASE_URL = previous;
+        }
+      });
+
+      it('strips a trailing slash so paths do not double up', () => {
+        assert.strictEqual(new ClaudeCodeClient('t', { baseUrl: 'https://gw.test/' })['baseUrl'], 'https://gw.test');
+      });
+
+      it('lets an explicit option win over the environment', () => {
+        const previous = process.env.ANTHROPIC_BASE_URL;
+        process.env.ANTHROPIC_BASE_URL = 'https://from-env.test';
+        try {
+          assert.strictEqual(new ClaudeCodeClient('t', { baseUrl: 'https://explicit.test' })['baseUrl'], 'https://explicit.test');
+        } finally {
+          if (previous === undefined) delete process.env.ANTHROPIC_BASE_URL;
+          else process.env.ANTHROPIC_BASE_URL = previous;
+        }
       });
     });
   });
