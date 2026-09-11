@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { getAccountCredentials } from './account-credentials.js';
 const exec = promisify(execFile);
@@ -48,7 +49,10 @@ test('saved account CLI reads the requested snapshot, without live auth or token
     await writeFile(file, JSON.stringify({ credentials: JSON.stringify(credentials), oauthAccount: { emailAddress: 'selected@mock.invalid' } }));
     assert.equal((await getAccountCredentials(file)).claudeAiOauth.accessToken, 'synthetic-selected');
 
-    const cli = new URL('./index.js', import.meta.url).pathname;
+    // fileURLToPath, not .pathname: on Windows the latter yields "/C:/..." and the
+    // leading slash makes node resolve "C:\C:\...", so this test could never have
+    // passed there. Nobody had run the suite on Windows until now.
+    const cli = fileURLToPath(new URL('./index.js', import.meta.url));
     const env = { ...process.env, NODE_OPTIONS: '', ANTHROPIC_BASE_URL: baseUrl };
 
     const { stdout, stderr } = await exec(
