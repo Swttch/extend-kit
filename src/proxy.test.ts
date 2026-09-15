@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
-import { resolveProxyUrl, isProxyBypassed, proxyAgentFor } from './proxy.js';
+import { resolveProxyUrl, isProxyBypassed, proxyAgentFor, redactProxyUrl } from './proxy.js';
 import { CcbError } from './battery/errors.js';
 
 const API = 'https://api.anthropic.com/api/oauth/usage';
@@ -36,6 +36,50 @@ describe('resolveProxyUrl()', () => {
     assert.strictEqual(
       resolveProxyUrl('ws://example.com/s', { HTTP_PROXY: 'http://proxy:8080' }),
       'http://proxy:8080',
+    );
+  });
+
+  // The regression behind Swttch/swttch#432's follow-up. curl would go direct
+  // here, and matching curl is what left the reporter's usage panel bypassing the
+  // proxy their chat was already using. The `claude` CLI tunnels an https request
+  // through HTTP_PROXY, so this does too; see the note on resolveProxyUrl.
+  it('falls back to HTTP_PROXY for an https target, as the claude CLI does', () => {
+    assert.strictEqual(
+      resolveProxyUrl(API, { HTTP_PROXY: 'http://only-http:8080' }),
+      'http://only-http:8080',
+    );
+  });
+
+  it('applies the same fallback to wss://', () => {
+    assert.strictEqual(resolveProxyUrl(WSS, { HTTP_PROXY: 'http://only-http:8080' }), 'http://only-http:8080');
+  });
+
+  it('reads the lowercase http_proxy for an https target too', () => {
+    assert.strictEqual(resolveProxyUrl(API, { http_proxy: 'http://lower-only:8080' }), 'http://lower-only:8080');
+  });
+
+  // The fallback must not outrank the variable that names this exact scheme.
+  it('still prefers HTTPS_PROXY when both are set', () => {
+    assert.strictEqual(
+      resolveProxyUrl(API, { HTTPS_PROXY: 'http://secure:8080', HTTP_PROXY: 'http://plain:8080' }),
+      'http://secure:8080',
+    );
+  });
+
+  // The fallback goes between the scheme-specific variable and ALL_PROXY, which
+  // is the order the claude CLI's own precedence implies.
+  it('prefers HTTP_PROXY over ALL_PROXY for an https target', () => {
+    assert.strictEqual(
+      resolveProxyUrl(API, { HTTP_PROXY: 'http://plain:8080', ALL_PROXY: 'socks5://generic:1080' }),
+      'http://plain:8080',
+    );
+  });
+
+  // The negative control for the fallback: adding it must not make NO_PROXY leak.
+  it('still honors NO_PROXY when only HTTP_PROXY is set', () => {
+    assert.strictEqual(
+      resolveProxyUrl(API, { HTTP_PROXY: 'http://plain:8080', NO_PROXY: 'api.anthropic.com' }),
+      undefined,
     );
   });
 
@@ -158,5 +202,38 @@ describe('proxyAgentFor()', () => {
       () => proxyAgentFor(API, { HTTPS_PROXY: 'ftp://proxy:21' }),
       (err: unknown) => err instanceof CcbError && err.code === 'invalid_proxy',
     );
+  });
+});
+
+/**
+ * Proxy credentials live in the URL, and the URL is the most useful thing an
+ * error about a proxy can name. Left alone, those two facts put a password in a
+ * message the user is likely to paste into a bug report.
+ */
+describe('redactProxyUrl()', () => {
+  it('removes the password but keeps the address recognisable', () => {
+    const shown = redactProxyUrl('http://myuser:mypassword@10.0.0.1:3128');
+    assert.ok(shown, 'expected a value to show');
+    assert.ok(!shown.includes('mypassword'), `password leaked: ${shown}`);
+    assert.ok(!shown.includes('myuser'), `username leaked: ${shown}`);
+    assert.ok(shown.includes('10.0.0.1:3128'), `address lost: ${shown}`);
+  });
+
+  it('leaves a credential-free URL alone', () => {
+    assert.strictEqual(redactProxyUrl('http://10.0.0.1:3128'), 'http://10.0.0.1:3128');
+  });
+
+  it('redacts a password given without a username', () => {
+    const shown = redactProxyUrl('http://:onlypass@10.0.0.1:3128');
+    assert.ok(shown && !shown.includes('onlypass'), `password leaked: ${shown}`);
+  });
+
+  it('says nothing at all when the URL cannot be parsed', () => {
+    // Refusing to print beats printing something that might contain a secret.
+    assert.strictEqual(redactProxyUrl('not a url with :secret@ in it'), undefined);
+  });
+
+  it('passes undefined through', () => {
+    assert.strictEqual(redactProxyUrl(undefined), undefined);
   });
 });
