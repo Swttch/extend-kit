@@ -23,6 +23,34 @@ import { CcbError } from './battery/errors.js';
 const SOCKS_PROTOCOLS = new Set(['socks:', 'socks4:', 'socks4a:', 'socks5:', 'socks5h:']);
 
 /**
+ * A proxy URL with any username and password taken out, safe to show a person.
+ *
+ * Proxy credentials live in the URL itself, and the URL is the most useful thing
+ * an error about a proxy can name. Those two facts together are how a password
+ * ends up in an error message, and from there in the screenshot someone attaches
+ * to a bug report. Every message this package writes goes through here first.
+ *
+ * The reporter on Swttch/swttch#181 configured exactly such a URL, so this is not
+ * a hypothetical shape.
+ */
+export function redactProxyUrl(proxyUrl: string | undefined): string | undefined {
+  if (!proxyUrl) return undefined;
+  try {
+    const url = new URL(proxyUrl);
+    if (!url.username && !url.password) return proxyUrl;
+    url.username = '';
+    url.password = '';
+    // A URL that carried credentials should still look like it did, so the user
+    // recognises which setting is being talked about.
+    return url.toString().replace('//', '//***@');
+  } catch {
+    // Not parseable, so it cannot be picked apart safely. Say nothing rather than
+    // risk printing a password that happens to sit in an unparseable string.
+    return undefined;
+  }
+}
+
+/**
  * Read a proxy variable in either spelling.
  *
  * Both cases are in real use — most tooling documents the uppercase form, while
@@ -74,6 +102,20 @@ export function isProxyBypassed(host: string, port: string, noProxy: string | un
  * `wss:`/`ws:` are resolved as their HTTP equivalents because that is how the
  * connection is actually made — a WebSocket starts life as an HTTP upgrade, so
  * a user who set HTTPS_PROXY expects `wss://` to go through it.
+ *
+ * **An https target falls back to HTTP_PROXY, and that is a deliberate departure
+ * from curl.** curl reads only the variable matching the target's scheme, so
+ * HTTP_PROXY never applies to an https URL there. The `claude` CLI does not
+ * follow that rule: given HTTP_PROXY alone, whether exported in the environment
+ * or written into settings.json's `env` block, it tunnels api.anthropic.com
+ * through it. Both behaviours were measured against a local CONNECT proxy.
+ *
+ * Matching curl instead of `claude` is what broke Swttch/swttch#432 for the
+ * person who reported it: one settings.json, chat working because the CLI
+ * honored HTTP_PROXY, and the usage panel going out direct because this function
+ * did not. The user writes that file for `claude`, so `claude` is the behaviour
+ * to match — the plugin's whole premise is that anything possible from the CLI
+ * is possible from the GUI.
  */
 export function resolveProxyUrl(targetUrl: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
   const target = new URL(targetUrl);
@@ -82,7 +124,9 @@ export function resolveProxyUrl(targetUrl: string, env: NodeJS.ProcessEnv = proc
 
   if (isProxyBypassed(target.hostname, port, readProxyEnv(env, 'NO_PROXY'))) return undefined;
 
-  const specific = isSecure ? readProxyEnv(env, 'HTTPS_PROXY') : readProxyEnv(env, 'HTTP_PROXY');
+  const specific = isSecure
+    ? readProxyEnv(env, 'HTTPS_PROXY') ?? readProxyEnv(env, 'HTTP_PROXY')
+    : readProxyEnv(env, 'HTTP_PROXY');
   return specific ?? readProxyEnv(env, 'ALL_PROXY');
 }
 
@@ -101,7 +145,11 @@ export function resolveProxyUrl(targetUrl: string, env: NodeJS.ProcessEnv = proc
  * attempt fails anyway, and it fails with a connection error that says nothing
  * about the real cause; naming the bad setting is far more useful.
  */
-export function proxyAgentFor(targetUrl: string, env: NodeJS.ProcessEnv = process.env): Agent | undefined {
+export function proxyAgentFor(
+  targetUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Agent | undefined {
   const proxyUrl = resolveProxyUrl(targetUrl, env);
   if (!proxyUrl) return undefined;
 
@@ -116,11 +164,29 @@ export function proxyAgentFor(targetUrl: string, env: NodeJS.ProcessEnv = proces
     );
   }
 
-  if (SOCKS_PROTOCOLS.has(protocol)) return new SocksProxyAgent(proxyUrl);
+  // A deadline has to reach the AGENT, not just the request.
+  //
+  // While an agent is negotiating with the proxy there is no socket on the
+  // request yet, so aborting the request reaches nothing: measured against a
+  // proxy that accepted a CONNECT and stayed silent, an aborted request produced
+  // no 'socket', no 'error' and no 'close', and simply hung. The caller would get
+  // its timeout while the connection attempt carried on behind it.
+  //
+  // The two agents take different instruments for the same job, so each is given
+  // the one it honors rather than one being forced on both.
+  if (SOCKS_PROTOCOLS.has(protocol)) {
+    // socks-proxy-agent hands `timeout` to SocksClient, which applies it to the
+    // handshake. It does not read `signal`, and passing one is not merely
+    // ignored — its options type has no room for it.
+    return new SocksProxyAgent(proxyUrl, options.timeoutMs ? { timeout: options.timeoutMs } : undefined);
+  }
   if (protocol === 'http:' || protocol === 'https:') {
-    // HttpsProxyAgent covers both, because every endpoint this package talks to
-    // is https/wss and therefore always reached by a CONNECT tunnel.
-    return new HttpsProxyAgent(proxyUrl);
+    // HttpsProxyAgent covers http: and https: alike, because every endpoint this
+    // package talks to is https/wss and therefore always reached by a CONNECT
+    // tunnel. Its options are spread into what it passes to net.connect, so a
+    // signal here destroys the socket the CONNECT wait is parked on and lets the
+    // failure surface. Measured: the error arrived 8ms after the abort.
+    return new HttpsProxyAgent(proxyUrl, options.signal ? { signal: options.signal } : undefined);
   }
 
   throw new CcbError(

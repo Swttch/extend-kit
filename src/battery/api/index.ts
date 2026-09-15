@@ -4,6 +4,7 @@ export { OAuthApi } from './oauth.js';
 export type {
   UsageResponse,
   UsageBucket,
+  UsageLimit,
   ExtraUsage,
   ProfileResponse,
   AccountInfo,

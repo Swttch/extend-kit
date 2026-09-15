@@ -1,5 +1,5 @@
 import { OAuthApi } from './oauth.js';
-import { getJson } from './http.js';
+import { getJson, proxyInUseFor, type JsonResponse } from './http.js';
 import { getCredentials, getAccessToken, isApiKeyAuth } from '../auth/index.js';
 import type { ClientAuth } from '../auth/index.js';
 import { CcbError } from '../errors.js';
@@ -77,15 +77,69 @@ export class ClaudeCodeClient {
       };
     }
 
-    // getJson rather than fetch: fetch cannot be routed through a proxy, and on a
-    // machine that only reaches the internet through one, every call here fails.
-    // See src/proxy.ts.
-    const response = await getJson<T>(`${this.baseUrl}${path}`, requestHeaders);
+    // getJson rather than fetch: fetch takes no `http.Agent`, and `ws` proxies
+    // only when handed one, so a single proxy implementation has to be built on
+    // something both transports accept. See src/proxy.ts.
+    const url = `${this.baseUrl}${path}`;
+    const response = await getJson<T>(url, requestHeaders);
 
     if (!response.ok) {
-      throw new CcbError(`API error ${response.status}: ${response.statusText}`, 'api_error');
+      throw describeApiFailure(response, url);
     }
 
     return response.body;
   }
+}
+
+/**
+ * Turn an HTTP status into an error a caller can route on and a person can act on.
+ *
+ * Every non-2xx used to become one `api_error` reading "API error 403: Forbidden",
+ * which is the same sentence for an expired login, a rate limit, and a request the
+ * gateway blocked. Nothing downstream could tell them apart, so the plugin's usage
+ * panel classified all of them as an authentication problem and told people to log
+ * in again no matter what had actually happened.
+ *
+ * The proxy is named whenever one is in play. A refusal that reaches this function
+ * came from the destination — {@link getJson} throws before this point when the
+ * proxy itself refused the tunnel — but knowing which route the request took is
+ * what makes the difference checkable rather than guessable.
+ */
+function describeApiFailure(response: JsonResponse<unknown>, url: string): CcbError {
+  const { status, statusText, retryAfterSec } = response;
+  const message = `API error ${status}: ${statusText}`;
+  const proxyUrl = proxyInUseFor(url);
+  const route = proxyUrl
+    ? `The request reached the API through the proxy at ${proxyUrl}.`
+    : 'The request went straight to the API, with no proxy configured for this process.';
+  // Repeated on every branch so a caller never has to know which code carries
+  // which facts. `reachedDestination` is true throughout: getJson throws before
+  // this point when a proxy refused the tunnel, so anything here was answered by
+  // the destination itself.
+  const details = { status, ...(proxyUrl && { proxyUrl }), reachedDestination: true };
+
+  if (status === 401) {
+    return new CcbError(message, 'token_expired',
+      'The saved login is no longer accepted. Run `claude` once to refresh it.', details);
+  }
+  if (status === 403) {
+    // The case this whole taxonomy came out of: a machine that can only reach
+    // Anthropic through a proxy, with the request going direct because the proxy
+    // was configured under a variable this tool was not reading. The gateway
+    // answers 403, which looks like an account problem and is not one.
+    return new CcbError(message, 'forbidden',
+      `${route} A 403 here is usually the network refusing the request rather than the account lacking access.`,
+      details);
+  }
+  if (status === 429) {
+    return new CcbError(message, 'rate_limited',
+      retryAfterSec !== undefined
+        ? `Too many requests. The API asked us to wait ${retryAfterSec}s.`
+        : 'Too many requests in a short window. Try again shortly.',
+      { ...details, ...(retryAfterSec !== undefined && { retryAfterSec }) });
+  }
+  if (status >= 500) {
+    return new CcbError(message, 'server_error', `${route} The API itself reported an error.`, details);
+  }
+  return new CcbError(message, 'api_error', route, details);
 }
