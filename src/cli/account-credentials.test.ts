@@ -66,8 +66,13 @@ test('saved account CLI reads the requested snapshot, without live auth or token
     // The selected snapshot's token is what went out — not the live login's.
     assert.deepEqual(seen, [{ url: '/api/oauth/usage', auth: 'Bearer synthetic-selected' }]);
 
+    // Pinned as a whole list, not with `includes`: a caller decides what it may
+    // use from this output, so dropping an entry is a breaking change and has to
+    // fail here. Adding a command means updating this line on purpose.
     const capabilities = await exec(process.execPath, [cli, '--capabilities', '--json'], { env });
-    assert.deepEqual(JSON.parse(capabilities.stdout), { capabilities: ['oauth.usage.account-file'] });
+    assert.deepEqual(JSON.parse(capabilities.stdout), {
+      capabilities: ['oauth.usage.account-file', 'stt.stream'],
+    });
 
     await writeFile(file, JSON.stringify({ credentials: JSON.stringify({ claudeAiOauth: { accessToken: 'expired-secret', expiresAt: 1 } }) }));
     await assert.rejects(getAccountCredentials(file), { code: 'token_expired' });
