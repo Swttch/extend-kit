@@ -6,6 +6,7 @@ import { oauthCommand } from './oauth.js';
 import { sttCommand } from './stt.js';
 import { getAccountCredentials } from './account-credentials.js';
 import { CcbError } from '../battery/errors.js';
+import { applySettingsEnv } from '../settings-env.js';
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,29 @@ const flags = new Set(args.filter((a: string) => a.startsWith('-')));
 const jsonOutput = flags.has('--json');
 const accountFile = args.find(arg => arg.startsWith('--account-file='))?.slice('--account-file='.length);
 
+/**
+ * `--env NAME=VALUE`, repeatable: a variable the caller is forcing for this run.
+ *
+ * An assignment written in front of a command (`FOO=bar ccb ...`) cannot be told apart from
+ * one exported in a startup file — both arrive as plain entries in the environment, carrying
+ * no record of how they got there. So a caller who means "use THIS one, whatever the settings
+ * files say" has no way to say it through the environment, and says it through this flag
+ * instead. Values given here outrank the settings files; nothing outranks them.
+ */
+function forcedEnv(): Array<[string, string]> {
+  return args
+    .filter(arg => arg.startsWith('--env='))
+    .map(arg => arg.slice('--env='.length))
+    .map((assignment): [string, string] | null => {
+      const eq = assignment.indexOf('=');
+      // A value may itself contain "=" (a proxy URL with a query string does), so only the
+      // FIRST separator splits. A name may not be empty; a value may.
+      if (eq <= 0) return null;
+      return [assignment.slice(0, eq), assignment.slice(eq + 1)];
+    })
+    .filter((pair): pair is [string, string] => pair !== null);
+}
+
 async function createClient(): Promise<ClaudeCodeClient> {
   const credentials = accountFile ? await getAccountCredentials(accountFile) : await getCredentials();
   const token = getAccessToken(credentials);
@@ -28,6 +52,15 @@ async function createClient(): Promise<ClaudeCodeClient> {
 }
 
 async function run(): Promise<void> {
+  // Before anything reads the environment. `claude` applies its settings files' `env` block
+  // to itself this way, and every read below — the proxy, the OAuth token, the config dir —
+  // has to see the same environment `claude` would see on this machine.
+  //
+  // The project whose settings apply is the directory this process was started in, which is
+  // how the spawning plugin names one: it sets the child's working directory.
+  await applySettingsEnv();
+  for (const [name, value] of forcedEnv()) process.env[name] = value;
+
   const [module, ...subcommand] = command;
 
   if (flags.has('--capabilities')) {
@@ -58,6 +91,8 @@ Commands:
   stt --check      Report whether this machine can dictate
 
 Options:
+  --env=NAME=VALUE       Force one environment variable for this run (repeatable).
+                         Outranks the env block of Claude Code's settings files.
   --account-file=<path>  Read usage for a CCG saved-account snapshot (no account switch)
   --language=<code>      BCP-47 language for stt (default: en)
   --keyterms=<a,b,c>     Extra vocabulary to bias stt toward

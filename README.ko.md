@@ -393,8 +393,31 @@ ccb oauth profile
 ### 옵션
 
 - `--json`: JSON 형식으로 출력
+- `--env=NAME=VALUE`: 이번 실행에만 환경변수 하나를 강제로 지정 (여러 번 사용 가능)
 - `-h, --help`: 도움말 표시
 - `-v, --version`: 버전 정보 표시
+
+### 환경변수
+
+`ccb`는 Claude Code의 설정 파일을 직접 읽어 `env` 블록을 적용합니다. `claude` 명령과 같은 동작이라,
+`~/.claude/settings.json`에만 적어 둔 프록시나 `CLAUDE_CODE_OAUTH_TOKEN` 값이 `ccb`에도 닿습니다.
+네 개 파일을 겹쳐 읽으며 뒤에 오는 파일이 앞의 파일을 덮습니다.
+
+```
+~/.claude/settings.json
+~/.claude/settings.local.json
+<프로젝트>/.claude/settings.json          # <프로젝트>는 실행한 작업 디렉토리
+<프로젝트>/.claude/settings.local.json
+```
+
+우선순위는 다음과 같습니다. 위에 있는 것이 이깁니다.
+
+1. 명령줄의 `--env=NAME=VALUE`
+2. 위 설정 파일들의 `env` 블록
+3. `ccb`가 실행될 때 물려받은 환경변수
+
+`CLAUDE_CONFIG_DIR` 하나만은 설정 파일에서 읽지 않습니다. 그 값이 설정 파일의 위치를 정하기 때문이며,
+환경변수로 지정해야 합니다.
 
 ```bash
 ccb oauth usage --json

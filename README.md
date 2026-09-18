@@ -401,8 +401,31 @@ ccb oauth profile
 ### Options
 
 - `--json`: Output in JSON format
+- `--env=NAME=VALUE`: Force one environment variable for this run (repeatable)
 - `-h, --help`: Show help
 - `-v, --version`: Show version information
+
+### Environment
+
+`ccb` reads Claude Code's own settings files and applies their `env` block, the same way the
+`claude` CLI does — so a proxy or a `CLAUDE_CODE_OAUTH_TOKEN` written only into
+`~/.claude/settings.json` reaches `ccb` too. Four files are layered, later winning over earlier:
+
+```
+~/.claude/settings.json
+~/.claude/settings.local.json
+<project>/.claude/settings.json          # <project> is the working directory
+<project>/.claude/settings.local.json
+```
+
+Resolution order, highest first:
+
+1. `--env=NAME=VALUE` on the command line
+2. the `env` block of the settings files above
+3. the environment `ccb` was started with
+
+`CLAUDE_CONFIG_DIR` is the one variable never read from a settings file, since it decides where
+those files are; set it in the environment instead.
 
 ```bash
 ccb oauth usage --json

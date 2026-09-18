@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { getCredentials, getAccessToken } from '../battery/auth/index.js';
+import { getCredentials, getAccessToken, isTokenExpired } from '../battery/auth/index.js';
 import { CcbError } from '../battery/errors.js';
 import { proxyAgentFor } from '../proxy.js';
 import { DEFAULT_KEYTERMS, packKeyterms } from './keyterms.js';
@@ -250,8 +250,14 @@ export async function openSpeechToTextStream(
  */
 export async function isSpeechToTextAvailable(): Promise<boolean> {
   try {
-    getAccessToken(await getCredentials());
-    return true;
+    const credentials = await getCredentials();
+    getAccessToken(credentials);
+    // An expired login answers "yes, you can dictate" and then fails the handshake with a
+    // 401 the caller has no way to explain. Somebody who signed in months ago and stopped
+    // has exactly that on disk: a credentials file, holding a token the server will refuse.
+    // Reading the expiry here turns that into "sign in first", which is the truth and is
+    // also something the user can act on.
+    return !isTokenExpired(credentials);
   } catch (err) {
     if (err instanceof CcbError) return false;
     throw err;

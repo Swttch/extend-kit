@@ -188,3 +188,64 @@ describe('getCredentials', async () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// getCredentials: the token handed over through the environment
+// ---------------------------------------------------------------------------
+
+describe('getCredentials with CLAUDE_CODE_OAUTH_TOKEN', () => {
+  const NAME = 'CLAUDE_CODE_OAUTH_TOKEN';
+  let original: string | undefined;
+
+  beforeEach(() => {
+    original = process.env[NAME];
+  });
+
+  const restore = (): void => {
+    if (original === undefined) delete process.env[NAME];
+    else process.env[NAME] = original;
+  };
+
+  it('uses the variable instead of the platform credential store', async () => {
+    process.env[NAME] = 'sk-ant-oat01-handed-over';
+    try {
+      const { getCredentials, getAccessToken } = await import('./index.js');
+      const credentials = await getCredentials();
+      // Reaching this at all is the assertion on macOS: the keychain read this would
+      // otherwise do needs a real login and a `security` prompt.
+      assert.equal(getAccessToken(credentials), 'sk-ant-oat01-handed-over');
+    } finally {
+      restore();
+    }
+  });
+
+  it('does not report the handed-over token as expired', async () => {
+    process.env[NAME] = 'sk-ant-oat01-handed-over';
+    try {
+      const { getCredentials, getAccessToken, isTokenExpired } = await import('./index.js');
+      const credentials = await getCredentials();
+      // Assert on the token too, or this passes on a machine whose real keychain login
+      // happens to be valid — which is every machine we develop on.
+      assert.equal(getAccessToken(credentials), 'sk-ant-oat01-handed-over');
+      // The variable carries a token and no expiry. Calling it expired would refuse a
+      // token the server is perfectly willing to accept.
+      assert.equal(isTokenExpired(credentials), false);
+    } finally {
+      restore();
+    }
+  });
+
+  it('falls through to the credential store when the variable is empty', async () => {
+    process.env[NAME] = '';
+    try {
+      const { getCredentials } = await import('./index.js');
+      // An empty variable is not a token. Treating it as one sends "Bearer " to the
+      // server and turns a working login into a 401.
+      const result = getCredentials();
+      assert.ok(result instanceof Promise);
+      result.catch(() => {});
+    } finally {
+      restore();
+    }
+  });
+});

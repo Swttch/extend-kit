@@ -26,6 +26,7 @@ src/
 ├── index.ts        # 전체 배럴. battery의 export를 flat하게 재노출(하위호환)
 ├── battery/        # Claude Code 계정·사용량 SDK (구 claude-code-battery)
 ├── stt/            # 음성 입력 (예정, 현재 비어 있음)
+├── settings-env.ts # Claude Code 설정파일의 env 블록을 process.env에 적용
 └── cli/            # ccb 명령. battery를 호출한다
 ```
 
@@ -59,6 +60,39 @@ VS Code 확장이 정의한 UX 계약(참고용): `voice.mode` 는 `hold`(기본
 3. **프록시 동작을 "요청이 성공했나"로 검증하면 안 된다.** 목적지에 직접 닿을 수 있는 환경에서는 **프록시를 건너뛰어도 요청이 성공한다.** 그래서 "성공했으니 프록시가 동작한다"는 판정은 항상 참이 되어 아무것도 증명하지 못한다. **프록시 서버가 `CONNECT` 를 받았는지로 판정한다** — `src/battery/api/http.test.ts` 가 실제 CONNECT 프록시를 띄워 그렇게 검증한다.
 
 > 3번은 가설이 아니라 실제로 일어난 일이다. 이 문제를 처음 고친 [Swttch/swttch#432](https://github.com/Swttch/swttch/pull/432) 는 환경변수를 `ccb` 에 정확히 전달했고 테스트도 전부 통과했지만, `ccb` 가 그 변수를 읽지 않아 **사용자에게는 아무것도 바뀌지 않았다.** 테스트가 "환경변수가 전달됐나"만 봤기 때문에 통과한 것이다.
+
+## ★ 설정파일 `env` 블록은 통째로 적용한다 (허용목록 금지)
+
+`src/settings-env.ts` 가 Claude Code 설정파일 네 개의 `env` 블록을 읽어 `process.env` 에 올린다. `src/cli/index.ts` 의 `run()` 첫 줄에서 호출하므로, 그 아래 모든 읽기(프록시·OAuth 토큰·설정 디렉토리)가 `claude` 와 같은 환경을 본다.
+
+**이름을 골라 담지 않는다.** 예전에 플러그인 쪽이 허용목록으로 8개 이름만 전달했고, 그 목록에 없는 이름 때문에 같은 증상이 두 번 났다([Swttch/swttch#181](https://github.com/Swttch/swttch/issues/181) 프록시, [Swttch/swttch#432](https://github.com/Swttch/swttch/pull/432) 소문자 표기). 목록에 이름을 더하는 처방은 다음 제보를 기다리는 일이라 그만뒀다.
+
+### 값 처리 규칙 (`claude` 2.1.261 실측)
+
+설정파일에 여섯 가지 형태를 넣고 자식 프로세스가 받은 값을 확인했다.
+
+| 적은 값 | 자식이 받은 값 | 규칙 |
+|---|---|---|
+| `"value"` | `value` | 문자열은 그대로 |
+| `"pre-${HOME}-post"` | `pre-${HOME}-post` | **치환하지 않는다** |
+| `"${UNSET:-fb}"` | `${UNSET:-fb}` | 기본값 문법도 치환하지 않는다 |
+| `""` | 빈 값으로 설정됨 | **삭제가 아니다** |
+| `1234` | `"1234"` | 숫자는 문자열로 |
+| `true` | `"true"` | 참거짓도 문자열로 |
+
+객체·배열·null은 우리가 건너뛴다. `claude` 의 처리는 **미측정**이고, `String({})` 이 `"[object Object]"` 가 되는 쪽이 더 나쁘기 때문이다.
+
+### 우선순위
+
+**`--env=NAME=VALUE` > 설정파일 `env` 블록 > 물려받은 환경변수.**
+
+가운데가 오른쪽을 이기는 것은 `claude` 실측 결과다. 셸에 export한 값과 설정파일 값을 다르게 두고 실행했더니 설정파일 값이 쓰였다.
+
+`--env` 플래그가 따로 있는 이유는, **`FOO=bar ccb` 형태로 앞에 붙인 값과 startup 파일에서 export한 값을 받는 쪽이 구분할 수 없기 때문**이다. 환경변수 자료구조에 출처 정보가 없다. 그래서 "이번엔 이걸 써라"를 말할 수단을 플래그로 따로 뒀다.
+
+### `CLAUDE_CONFIG_DIR` 만 예외다
+
+설정파일의 **위치를 정하는 값**이라 그 파일에서 읽으면 순환이다. `EXCLUDED_NAMES` 에 있고, 환경변수에서만 읽는다. 플러그인도 이 변수만 자기 설정파일에 두고 넘겨준다.
 
 ## 하위호환 (claude-code-battery 사용자)
 
