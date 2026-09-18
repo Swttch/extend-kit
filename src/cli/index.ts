@@ -73,7 +73,11 @@ async function run(): Promise<void> {
     // A caller checks this before using a command: the plugin has to know
     // whether the kit on this machine is new enough to stream dictation, since
     // the only alternative it once had (importing the module) is gone.
-    console.log(JSON.stringify({ capabilities: ['oauth.usage.account-file', 'stt.stream'] }));
+    // `settings.env` says this build reads Claude Code's settings files and applies their
+    // `env` block. The caller needs to know: the plugin stopped copying that block into the
+    // child's environment once this existed, so a kit without it silently loses every
+    // variable configured there — a proxy, a CLAUDE_CODE_OAUTH_TOKEN — with no error to show.
+    console.log(JSON.stringify({ capabilities: ['oauth.usage.account-file', 'stt.stream', 'settings.env'] }));
     return;
   }
   if (args.some(arg => arg.startsWith('--account-file')) && (!accountFile || module !== 'oauth' || subcommand[0] !== 'usage')) {

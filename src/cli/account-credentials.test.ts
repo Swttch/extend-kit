@@ -71,7 +71,7 @@ test('saved account CLI reads the requested snapshot, without live auth or token
     // fail here. Adding a command means updating this line on purpose.
     const capabilities = await exec(process.execPath, [cli, '--capabilities', '--json'], { env });
     assert.deepEqual(JSON.parse(capabilities.stdout), {
-      capabilities: ['oauth.usage.account-file', 'stt.stream'],
+      capabilities: ['oauth.usage.account-file', 'stt.stream', 'settings.env'],
     });
 
     await writeFile(file, JSON.stringify({ credentials: JSON.stringify({ claudeAiOauth: { accessToken: 'expired-secret', expiresAt: 1 } }) }));
