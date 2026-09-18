@@ -1,6 +1,6 @@
 {
   "name": "@swttch/extend-kit",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Companion tools for Swttch that live outside the plugin bundle: Claude Code account/usage SDK, the ccb CLI, and speech-to-text.",
   "type": "module",
   "main": "./dist/index.js",
