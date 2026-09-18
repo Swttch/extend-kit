@@ -139,9 +139,17 @@ export async function readSettingsEnv(projectDir?: string): Promise<Record<strin
  * is indistinguishable from an inherited variable by the time it arrives, so a flag is the only
  * way a caller can say "this one, whatever the files say".
  */
-export async function applySettingsEnv(projectDir: string = process.cwd()): Promise<void> {
+export async function applySettingsEnv(
+  projectDir: string = process.cwd(),
+  forcedNames: ReadonlySet<string> = new Set(),
+): Promise<void> {
   const settingsEnv = await readSettingsEnv(projectDir);
   for (const [name, value] of Object.entries(settingsEnv)) {
+    // A forced name is already in place and must survive: the caller put it there to
+    // outrank exactly this. Skipping is how that ordering is kept in one pass, and it
+    // matters most for CLAUDE_CONFIG_DIR, which has to be in place BEFORE this function
+    // runs because it is what decides which settings files it reads.
+    if (forcedNames.has(name)) continue;
     process.env[name] = value;
   }
 }

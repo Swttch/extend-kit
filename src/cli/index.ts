@@ -58,8 +58,14 @@ async function run(): Promise<void> {
   //
   // The project whose settings apply is the directory this process was started in, which is
   // how the spawning plugin names one: it sets the child's working directory.
-  await applySettingsEnv();
-  for (const [name, value] of forcedEnv()) process.env[name] = value;
+  //
+  // Forced values go in FIRST and are then skipped by the settings pass, rather than being
+  // applied on top afterwards. The order is what makes `--env=CLAUDE_CONFIG_DIR=...` work:
+  // that variable decides WHICH settings files get read, so a value arriving after the read
+  // would be too late to have any effect on it.
+  const forced = forcedEnv();
+  for (const [name, value] of forced) process.env[name] = value;
+  await applySettingsEnv(process.cwd(), new Set(forced.map(([name]) => name)));
 
   const [module, ...subcommand] = command;
 

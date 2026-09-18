@@ -152,3 +152,41 @@ describe('applySettingsEnv', () => {
     delete process.env['OTHER'];
   });
 });
+
+describe('applySettingsEnv with forced names', () => {
+  let configDir: string;
+  let originalConfigDir: string | undefined;
+  const TOUCHED = 'CCB_FORCED_ENV_TEST_VAR';
+
+  beforeEach(async () => {
+    configDir = await mkdtemp(path.join(os.tmpdir(), 'ccb-forced-env-'));
+    originalConfigDir = process.env['CLAUDE_CONFIG_DIR'];
+    process.env['CLAUDE_CONFIG_DIR'] = configDir;
+  });
+
+  afterEach(async () => {
+    if (originalConfigDir === undefined) delete process.env['CLAUDE_CONFIG_DIR'];
+    else process.env['CLAUDE_CONFIG_DIR'] = originalConfigDir;
+    delete process.env[TOUCHED];
+    await rm(configDir, { recursive: true, force: true });
+  });
+
+  it('leaves a forced name alone, so the command line outranks the files', async () => {
+    process.env[TOUCHED] = 'forced-on-the-command-line';
+    await writeFile(path.join(configDir, 'settings.json'),
+      JSON.stringify({ env: { [TOUCHED]: 'from-settings' } }));
+
+    await applySettingsEnv(configDir, new Set([TOUCHED]));
+
+    assert.equal(process.env[TOUCHED], 'forced-on-the-command-line');
+  });
+
+  it('still applies the names that were not forced', async () => {
+    await writeFile(path.join(configDir, 'settings.json'),
+      JSON.stringify({ env: { [TOUCHED]: 'from-settings' } }));
+
+    await applySettingsEnv(configDir, new Set(['SOMETHING_ELSE']));
+
+    assert.equal(process.env[TOUCHED], 'from-settings');
+  });
+});
