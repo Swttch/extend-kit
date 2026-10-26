@@ -21,7 +21,8 @@
     "./cli": "./dist/cli/index.js"
   },
   "bin": {
-    "ccb": "dist/cli/index.js"
+    "ccb": "dist/cli/index.js",
+    "swttch-ext": "dist/ext/index.js"
   },
   "scripts": {
     "build": "tsc",

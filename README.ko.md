@@ -8,12 +8,77 @@
 | --- | --- |
 | **battery** | *사용자 본인의* 머신에 저장된 Claude Code 로그인 정보(keychain 또는 자격증명 파일)를 읽어야 합니다 |
 | **stt** | 받아쓰기는 OAuth 토큰을 전송하는데, JetBrains 플러그인은 자격증명을 다룰 수 없습니다 |
+| **swttch-ext** | 저장된 로그인으로 내 계정에 대해 호출합니다(아티팩트: 목록, 이름 변경, 고정, 삭제) |
 
 ## battery
 
 Claude Code의 내부 API를 래핑한 TypeScript SDK 및 CLI입니다. Claude Code 사용자의 API 사용량 및 계정 정보를 프로그래매틱하게 접근할 수 있습니다.
 
 > **`claude-code-battery`에서 옮겨오시나요?** import만 `@swttch/extend-kit`으로 바꾸면 나머지는 그대로입니다 — export 목록과 `ccb` 명령은 변경되지 않았습니다. 기존 패키지도 계속 동작하며, 이제 이 패키지를 재노출합니다.
+
+## swttch-ext
+
+내 머신에서 내 Claude 계정에 대해 하는 호출을 위한 명령입니다. 저장된 Claude Code 로그인을 쓰며, 따로 묻는 것은 없습니다.
+
+```bash
+swttch-ext api <서비스> <호출> [--옵션 값 ...] [--yes]
+```
+
+모든 호출은 **JSON 객체 하나**를 출력하고, 성공하면 종료 코드 `0`입니다.
+
+```json
+{ "ok": true,  "data": { "...": "..." } }
+{ "ok": false, "error": { "code": "not_found", "message": "...", "status": 404 } }
+```
+
+### 아티팩트 (`frame`)
+
+Claude가 게시한 [아티팩트](https://code.claude.com/docs/en/artifacts)를 관리합니다. 아티팩트는 `slug`(UUID)로 가리키며, `list`가 알려 줍니다.
+
+| 호출 | 하는 일 | 파라미터 |
+| --- | --- | --- |
+| `frame list` | 내 아티팩트 목록: 이름, 소유자, 마지막 수정, 고정 여부, 각각에 할 수 있는 일 | `--limit` (1–200, 기본 50) |
+| `frame retitle` | 이름 바꾸기. 페이지의 `<title>`이 고쳐지고, 새 버전으로 저장됩니다 | `--slug`, `--title` |
+| `frame pin` | 고정 | `--slug` |
+| `frame unpin` | 고정 해제 | `--slug` |
+| `frame delete` | 완전히 삭제. 링크가 모두에게 열리지 않게 되고 되돌릴 수 없습니다 | `--slug`, `--yes` |
+
+```bash
+swttch-ext api frame list --limit 10
+swttch-ext api frame retitle --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --title "분기 보고서"
+swttch-ext api frame pin --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d
+swttch-ext api frame delete --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --yes
+```
+
+- **`delete`는 `--yes` 없이는 아무것도 하지 않고** `confirmation_required`로 답합니다.
+- **`<title>`이 없는 페이지는 이름을 바꿀 수 없습니다**(`rejected`). 페이지에 `<title>`을 넣고 다시 게시한 뒤에 바꾸세요.
+- 이름 변경·고정·삭제는 내가 소유한 아티팩트에만 됩니다. 남의 것은 `not_found`로 답합니다.
+
+### 이 버전이 할 수 있는 일 알아보기
+
+```bash
+swttch-ext api --list          # 모든 호출과 파라미터(JSON)
+swttch-ext --capabilities      # {"capabilities":["api.frame.list", ...]}
+```
+
+`swttch-ext`를 부르는 프로그램은 먼저 `--capabilities`를 확인해, 오래된 설치와 실패한 호출을 구분할 수 있습니다.
+
+### 오류 코드
+
+| `error.code` | 뜻 |
+| --- | --- |
+| `confirmation_required` | 되돌릴 수 없는 호출을 `--yes` 없이 실행했습니다 |
+| `invalid_argument` | 파라미터가 없거나, 비었거나, 너무 길거나, 허용되지 않습니다 |
+| `unknown_operation` | 그런 호출이 없습니다. `--list`를 보세요 |
+| `not_found` | 아티팩트가 없거나 내 것이 아닙니다 |
+| `rejected` / `conflict` | 서버가 변경을 거절했거나(이유는 `message`), 그 사이 아티팩트가 바뀌었습니다 |
+| `token_expired` | 저장된 로그인이 더는 받아들여지지 않습니다. `claude`를 한 번 실행해 갱신하세요 |
+| `forbidden` / `rate_limited` | 이 계정이 할 수 없는 일입니다 / 요청이 너무 많습니다(`hint`에 기다릴 시간) |
+| `network_error` / `timeout` | 서버에 닿지 못했습니다. 위의 프록시 설정이 여기에도 적용됩니다 |
+
+프록시 환경변수, `--env=NAME=VALUE`, Claude Code 설정파일은 `ccb`와 같은 방식으로 읽습니다.
+
+> **비공식 API**: `ccb`와 마찬가지로 Anthropic이 문서화하지 않은 엔드포인트를 쓰므로 바뀔 수 있습니다.
 
 ## 주의사항
 

@@ -27,7 +27,8 @@ src/
 ├── battery/        # Claude Code 계정·사용량 SDK (구 claude-code-battery)
 ├── stt/            # 음성 입력 (예정, 현재 비어 있음)
 ├── settings-env.ts # Claude Code 설정파일의 env 블록을 process.env에 적용
-└── cli/            # ccb 명령. battery를 호출한다
+├── cli/            # ccb 명령. battery를 호출한다
+└── ext/            # swttch-ext 명령. 배터리가 아닌 외부 서비스 호출(아티팩트 등)
 ```
 
 ## ★ `ccb` 명령 이름은 바꾸지 않는다
@@ -38,6 +39,32 @@ src/
 - 플러그인의 사용량 패널이 `ccb_missing` 으로 죽는다
 
 패키지 이름이 무엇으로 바뀌든 `bin.ccb` 는 유지한다.
+
+## ★ `swttch-ext`: 배터리가 아닌 호출은 여기로
+
+`ccb`는 원래 Claude Code **배터리**(계정·사용량)를 뜻하는 이름이다. 배터리와 거리가 먼 호출을 `ccb`에 계속 얹지 않고, 새 호출은 `swttch-ext`로 보낸다. `bin.ccb`는 그대로다.
+
+```
+swttch-ext api <서비스> <호출> [--옵션 값 ...] [--yes] [--json]
+swttch-ext api --list            # 이 버전이 할 수 있는 호출 목록(JSON)
+swttch-ext --capabilities        # 플러그인이 메뉴를 켤지 판정하는 기능 이름(JSON)
+```
+
+- **호출은 표 한 줄이다** (`src/ext/operations.ts`). 서비스·이름·메서드·경로·파라미터·오류 뜻·파괴적인지를 데이터로 둔다. **표에 없는 경로는 부를 수 없다.** 경로를 그대로 받는 만능 호출은 로그인 토큰의 만능 클라이언트가 되므로 일부러 만들지 않았다. 새 API는 표에 한 줄을 더한다.
+- **출력은 JSON 한 개다**: `{"ok":true,"data":…}` 또는 `{"ok":false,"error":{code,message,status?,hint?}}`. 토큰은 어떤 경우에도 출력하지 않는다.
+- **되돌릴 수 없는 호출(`delete`)은 `--yes`가 없으면 실행하지 않는다.** 플러그인은 화면에서 먼저 확인받고 `--yes`를 붙인다.
+- 경로 파라미터는 문자·숫자·`-`·`_`만 받는다(다른 경로를 가리키는 값 차단).
+
+### 아티팩트(`frame`) 호출: Claude Code CLI 2.1.308을 읽고 실측으로 확인한 것
+
+미문서 API다. 호스트는 `api.anthropic.com`, 인증은 `ccb oauth`와 같은 claude.ai OAuth 토큰이다.
+
+1. **`X-Frame-*` 헤더가 없으면 모든 경로가 404다.** 같은 로그인으로 목록이 나오는 계정에서도 "not found"만 돌아온다(실측). `X-Frame-CP: go`, `X-Frame-Surface: code`, `X-Frame-Platform: cli`, `X-Frame-Client-Version`을 보낸다. 마지막은 이 도구의 이름과 버전이다.
+2. **`slug`는 UUID다**(`?artifact=` 뒤의 값). 게시 주소 `claude.ai/artifact/<짧은 id>`의 짧은 id가 아니다. 목록(`frame list`)이 둘을 잇는 값(`live` 버전 id)을 준다.
+3. **`retitle`은 서버가 저장된 HTML의 `<title>`을 고쳐 쓰는 것이다.** `<title>`이 없는 페이지는 422 `content_refused`로 거절된다("stored content has no <title> to rewrite"). 이름을 바꿀 때마다 새 버전이 하나 생긴다.
+4. `pin`/`unpin`은 `starred`(목록에 `starred`, `starred_at`)로 나타난다. `delete`는 409·429·503이면 서버가 말한 시간(최대 10초)만큼 기다렸다 한 번 더 시도한다.
+5. 목록 항목의 `renamable`, `duplicable`, `duplicateAvailable`, `audience`, `rel`은 화면이 메뉴를 켜고 끄는 근거다.
+6. **복제·신고·공유 호출은 아직 표에 없다.** 복제와 신고는 CLI 코드에 경로가 없고(웹 화면 기능), 공유는 `/api/frame/perm/<slug>`로 읽었지만 본문 모양을 끝까지 확인하지 않았다.
 
 ## STT 구현 시 알아야 할 것 (실측으로 확인함)
 

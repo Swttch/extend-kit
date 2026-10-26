@@ -27,6 +27,14 @@ export interface JsonResponse<T> {
    * Absent when the header was missing or was an HTTP-date rather than a count.
    */
   retryAfterSec?: number;
+  /**
+   * The start of the body the destination answered a non-2xx with, as text.
+   *
+   * The write calls need it: a refusal to rename says WHY in its body ("title too long"), and a
+   * caller that only got the status could say nothing more useful than the status. Capped, since
+   * it is a diagnostic and not a document, and absent on success.
+   */
+  errorText?: string;
 }
 
 /** Retry-After is either a count of seconds or an HTTP-date; only the former is useful here. */
@@ -67,6 +75,12 @@ function defaultDeadlineMs(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_DEADLINE_MS;
 }
 
+/** {@link GetJsonOptions} plus the one thing only a write has. */
+export interface RequestJsonOptions extends GetJsonOptions {
+  /** A JSON body to send. Sets the content type and length. */
+  body?: unknown;
+}
+
 /** Options that change how a request is made, rather than what is requested. */
 export interface GetJsonOptions {
   /** Use this agent instead of resolving one from the proxy environment. */
@@ -96,7 +110,28 @@ export async function getJson<T>(
   headers: Record<string, string>,
   options: GetJsonOptions = {},
 ): Promise<JsonResponse<T>> {
+  return requestJson<T>('GET', url, headers, options);
+}
+
+/**
+ * Send a request with any method and read the answer as JSON, through a proxy when one is
+ * configured. {@link getJson} is this with `GET`; everything said there about proxies and
+ * timeouts holds here, because it is the same code.
+ *
+ * An empty body on a 2xx is a valid answer (a DELETE that says "done" by saying nothing), and
+ * comes back as `body: undefined` rather than as a parse failure.
+ */
+export async function requestJson<T>(
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  url: string,
+  headers: Record<string, string>,
+  options: RequestJsonOptions = {},
+): Promise<JsonResponse<T>> {
   const { agent: agentOverride, deadlineMs = defaultDeadlineMs() } = options;
+  const payload = options.body === undefined ? undefined : JSON.stringify(options.body);
+  const sentHeaders = payload === undefined
+    ? headers
+    : { ...headers, 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(payload)) };
   // Built before the agent, because the agent needs it: see the note in
   // proxyAgentFor on why a signal given only to the request cannot end a wait
   // that has not produced a socket yet.
@@ -144,7 +179,7 @@ export async function getJson<T>(
     result = await new Promise<RawResult>((resolve, reject) => {
       const req: ClientRequest = request(
         url,
-        { method: 'GET', headers, agent, signal: abort.signal },
+        { method, headers: sentHeaders, agent, signal: abort.signal },
         (res) => {
           const chunks: Buffer[] = [];
           res.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -187,7 +222,7 @@ export async function getJson<T>(
         ));
       });
 
-      req.end();
+      req.end(payload);
     });
   } finally {
     clearTimeout(deadline);
@@ -222,8 +257,14 @@ export async function getJson<T>(
   const { status, statusText, text, retryAfterSec } = result;
 
   if (status < 200 || status >= 300) {
-    return { ok: false, status, statusText, body: undefined as T, ...(retryAfterSec !== undefined && { retryAfterSec }) };
+    return {
+      ok: false, status, statusText, body: undefined as T,
+      ...(retryAfterSec !== undefined && { retryAfterSec }),
+      ...(text.trim() !== '' && { errorText: text.trim().slice(0, 500) }),
+    };
   }
+
+  if (text.trim() === '') return { ok: true, status, statusText, body: undefined as T };
 
   try {
     return { ok: true, status, statusText, body: JSON.parse(text) as T };

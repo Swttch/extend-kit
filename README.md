@@ -8,12 +8,77 @@ The companion tools [Swttch](https://github.com/Swttch/swttch) needs but cannot 
 | --- | --- |
 | **battery** | Reads the Claude Code login stored on *your* machine (keychain, or a credentials file) |
 | **stt** | Dictation sends your OAuth token, and a JetBrains plugin may not handle credentials |
+| **swttch-ext** | Acts on your account with the saved login (artifacts: list, rename, pin, delete) |
 
 ## battery
 
 A TypeScript SDK and CLI that wraps the internal API of Claude Code. This allows programmatic access to API usage metrics and account information for Claude Code users.
 
 > **Moving from `claude-code-battery`?** Change the import to `@swttch/extend-kit` and everything else stays the same — the exports and the `ccb` command are unchanged. The old package still works; it now re-exports this one.
+
+## swttch-ext
+
+A command for calls that act on your Claude account from your own machine — the saved Claude Code login is used, and nothing is asked of you.
+
+```bash
+swttch-ext api <service> <call> [--param value ...] [--yes]
+```
+
+Every call prints **one JSON object** and exits `0` on success:
+
+```json
+{ "ok": true,  "data": { "...": "..." } }
+{ "ok": false, "error": { "code": "not_found", "message": "...", "status": 404 } }
+```
+
+### Artifacts (`frame`)
+
+Manage the pages Claude published as [Artifacts](https://code.claude.com/docs/en/artifacts). An artifact is named by its `slug` (a UUID), which `list` returns.
+
+| Call | What it does | Parameters |
+| --- | --- | --- |
+| `frame list` | Lists your artifacts: name, owner, last update, whether it is pinned, and what you may do to each | `--limit` (1–200, default 50) |
+| `frame retitle` | Renames an artifact. The page's `<title>` is rewritten, and the change is saved as a new version | `--slug`, `--title` |
+| `frame pin` | Pins an artifact | `--slug` |
+| `frame unpin` | Removes the pin | `--slug` |
+| `frame delete` | Deletes an artifact for good. Its link stops working for everyone and it cannot be restored | `--slug`, `--yes` |
+
+```bash
+swttch-ext api frame list --limit 10
+swttch-ext api frame retitle --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --title "Quarterly report"
+swttch-ext api frame pin --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d
+swttch-ext api frame delete --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --yes
+```
+
+- **`delete` does nothing without `--yes`.** It answers `confirmation_required` instead.
+- **A page with no `<title>` cannot be renamed** (`rejected`): add a `<title>` to the page and publish it again first.
+- Only artifacts you own can be renamed, pinned or deleted; for anyone else's the answer is `not_found`.
+
+### Finding out what this version can do
+
+```bash
+swttch-ext api --list          # every call, with its parameters, as JSON
+swttch-ext --capabilities      # {"capabilities":["api.frame.list", ...]}
+```
+
+A program that calls `swttch-ext` can check `--capabilities` first, so an older install is told apart from a failed call.
+
+### Error codes
+
+| `error.code` | Meaning |
+| --- | --- |
+| `confirmation_required` | A call that cannot be undone was run without `--yes` |
+| `invalid_argument` | A parameter is missing, empty, too long, or not allowed |
+| `unknown_operation` | There is no such call; see `--list` |
+| `not_found` | The artifact does not exist, or is not yours |
+| `rejected` / `conflict` | The server refused the change (the reason is in `message`), or the artifact changed meanwhile |
+| `token_expired` | The saved login is no longer accepted; run `claude` once to refresh it |
+| `forbidden` / `rate_limited` | The account may not do that / too many requests (`hint` says how long to wait) |
+| `network_error` / `timeout` | The server could not be reached; the proxy settings above apply here too |
+
+Proxy variables, `--env=NAME=VALUE` and Claude Code's settings files are read the same way as for `ccb`.
+
+> **Unofficial API**: like `ccb`, these calls use endpoints Anthropic does not document, so they may change.
 
 ## Important Notes
 
