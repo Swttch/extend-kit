@@ -35,7 +35,7 @@ describe('swttch-ext api', () => {
 
   describe('the table', () => {
     it('names every call, with a capability a caller can look for', () => {
-      assert.deepEqual(operationCapabilities().sort(), ['api.frame.delete', 'api.frame.list', 'api.frame.pin', 'api.frame.retitle', 'api.frame.unpin']);
+      assert.deepEqual(operationCapabilities().sort(), ['api.frame.delete', 'api.frame.duplicate', 'api.frame.list', 'api.frame.pin', 'api.frame.retitle', 'api.frame.unpin']);
       assert.equal(new Set(OPERATIONS.map((o) => `${o.service}.${o.name}`)).size, OPERATIONS.length);
     });
 
@@ -121,6 +121,16 @@ describe('swttch-ext api', () => {
         ['POST', '/api/frame/favorite/abc', ''],
         ['DELETE', '/api/frame/favorite/abc', ''],
       ]);
+    });
+  });
+
+  describe('duplicate', () => {
+    it('posts to the copy path with no body and hands back the answer', async () => {
+      respond = (_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"slug":"new1","copied":{"db":true}}'); };
+      const result = await run('duplicate', { slug: 'abc' });
+      assert.deepEqual(seen.map((r) => [r.method, r.url, r.body]), [['POST', '/api/frame/duplicate/abc', '']]);
+      assert.equal(result.ok, true);
+      assert.equal((result as { ok: true; data: { slug: string } }).data.slug, 'new1');
     });
   });
 

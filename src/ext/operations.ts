@@ -126,6 +126,22 @@ export const OPERATIONS: Operation[] = [
   },
   {
     service: 'frame',
+    name: 'duplicate',
+    method: 'POST',
+    path: '/api/frame/duplicate/{slug}',
+    params: [SLUG],
+    capability: 'api.frame.duplicate',
+    destructive: false,
+    errors: [
+      { status: 404, code: 'not_found', message: 'Artifact not found, or it cannot be copied.' },
+      { status: 403, code: 'refused', message: 'This artifact cannot be copied by you.' },
+      { status: 409, code: 'refused', message: 'The copy was refused.' },
+      { status: 429, code: 'rate_limited', message: 'Too many copies today. Try again later.' },
+    ],
+    about: 'Make a copy of an artifact; the answer carries the copy\'s id',
+  },
+  {
+    service: 'frame',
     name: 'delete',
     method: 'DELETE',
     path: '/api/frame/{slug}',

@@ -63,7 +63,8 @@ swttch-ext --capabilities        # 플러그인이 메뉴를 켤지 판정하는
 2. **`slug`는 UUID다**(`?artifact=` 뒤의 값). 게시 주소 `claude.ai/artifact/<짧은 id>`의 짧은 id가 아니다. 목록(`frame list`)이 둘을 잇는 값(`live` 버전 id)을 준다.
 3. **`retitle`은 서버가 저장된 HTML의 `<title>`을 고쳐 쓰는 것이다.** `<title>`이 없는 페이지는 422 `content_refused`로 거절된다("stored content has no <title> to rewrite"). 이름을 바꿀 때마다 새 버전이 하나 생긴다.
 4. `pin`/`unpin`은 `starred`(목록에 `starred`, `starred_at`)로 나타난다. `delete`는 409·429·503이면 서버가 말한 시간(최대 10초)만큼 기다렸다 한 번 더 시도한다.
-5. 목록 항목의 `renamable`, `duplicable`, `duplicateAvailable`, `audience`, `rel`은 화면이 메뉴를 켜고 끄는 근거다.
+5. `duplicate`는 `POST /api/frame/duplicate/<slug>`이고 본문이 없다(웹 클라이언트 번들을 읽어 확인, 실측으로도 확인). 응답의 `slug`가 복사본이며 이름은 `<이름> (Copy)`다. 복사할 수 없는 경우(`duplicable:false`)는 서버가 사유 코드(`source_refused` 등)를 준다.
+6. 목록 항목의 `renamable`, `duplicable`, `duplicateAvailable`, `audience`, `rel`은 화면이 메뉴를 켜고 끄는 근거다.
 6. **복제·신고·공유 호출은 아직 표에 없다.** 복제와 신고는 CLI 코드에 경로가 없고(웹 화면 기능), 공유는 `/api/frame/perm/<slug>`로 읽었지만 본문 모양을 끝까지 확인하지 않았다.
 
 ## STT 구현 시 알아야 할 것 (실측으로 확인함)

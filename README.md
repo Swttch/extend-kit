@@ -41,12 +41,14 @@ Manage the pages Claude published as [Artifacts](https://code.claude.com/docs/en
 | `frame retitle` | Renames an artifact. The page's `<title>` is rewritten, and the change is saved as a new version | `--slug`, `--title` |
 | `frame pin` | Pins an artifact | `--slug` |
 | `frame unpin` | Removes the pin | `--slug` |
+| `frame duplicate` | Makes a copy of an artifact under your account. The answer carries the copy's `slug`; the copy is named "<name> (Copy)" | `--slug` |
 | `frame delete` | Deletes an artifact for good. Its link stops working for everyone and it cannot be restored | `--slug`, `--yes` |
 
 ```bash
 swttch-ext api frame list --limit 10
 swttch-ext api frame retitle --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --title "Quarterly report"
 swttch-ext api frame pin --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d
+swttch-ext api frame duplicate --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d
 swttch-ext api frame delete --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --yes
 ```
 

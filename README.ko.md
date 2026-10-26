@@ -41,12 +41,14 @@ Claude가 게시한 [아티팩트](https://code.claude.com/docs/en/artifacts)를
 | `frame retitle` | 이름 바꾸기. 페이지의 `<title>`이 고쳐지고, 새 버전으로 저장됩니다 | `--slug`, `--title` |
 | `frame pin` | 고정 | `--slug` |
 | `frame unpin` | 고정 해제 | `--slug` |
+| `frame duplicate` | 아티팩트를 내 계정에 복제합니다. 응답에 복사본의 `slug`가 들어 있고, 이름은 "<이름> (Copy)"가 됩니다 | `--slug` |
 | `frame delete` | 완전히 삭제. 링크가 모두에게 열리지 않게 되고 되돌릴 수 없습니다 | `--slug`, `--yes` |
 
 ```bash
 swttch-ext api frame list --limit 10
 swttch-ext api frame retitle --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --title "분기 보고서"
 swttch-ext api frame pin --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d
+swttch-ext api frame duplicate --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d
 swttch-ext api frame delete --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --yes
 ```
 
