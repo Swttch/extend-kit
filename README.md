@@ -10,6 +10,17 @@ The companion tools [Swttch](https://github.com/Swttch/swttch) needs but cannot 
 | **stt** | Dictation sends your OAuth token, and a JetBrains plugin may not handle credentials |
 | **swttch-ext** | Acts on your account with the saved login (artifacts: list, rename, pin, delete; `tts`: read text aloud) |
 
+> **`ccb` is the old name.** This package started as `ccb`, a CLI for your Claude Code usage and account, and grew into every tool that needs your login. `swttch-ext` is the command for all of it, and it can do everything `ccb` did:
+>
+> | Old | New |
+> | --- | --- |
+> | `ccb oauth usage` | `swttch-ext api oauth usage` |
+> | `ccb oauth profile` | `swttch-ext api oauth profile` |
+> | `ccb oauth usage --account-file=<path>` | `swttch-ext api oauth usage --account-file <path>` |
+> | `ccb stt` / `ccb stt --check` | `swttch-ext stt` / `swttch-ext stt --check` |
+>
+> `ccb` is deprecated but keeps working and its name will not change. `swttch-ext` prints one JSON object (`{"ok":true,"data":...}`); `ccb --json` prints the raw response.
+
 ## battery
 
 A TypeScript SDK and CLI that wraps the internal API of Claude Code. This allows programmatic access to API usage metrics and account information for Claude Code users.

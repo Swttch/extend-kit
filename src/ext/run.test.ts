@@ -2,6 +2,9 @@ import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { runOperation, checkParams, readableReason } from './run.js';
 import { findOperation, OPERATIONS, operationCapabilities } from './operations.js';
 
@@ -35,7 +38,7 @@ describe('swttch-ext api', () => {
 
   describe('the table', () => {
     it('names every call, with a capability a caller can look for', () => {
-      assert.deepEqual(operationCapabilities().sort(), ['api.frame.delete', 'api.frame.duplicate', 'api.frame.list', 'api.frame.pin', 'api.frame.retitle', 'api.frame.unpin']);
+      assert.deepEqual(operationCapabilities().sort(), ['api.frame.delete', 'api.frame.duplicate', 'api.frame.list', 'api.frame.pin', 'api.frame.retitle', 'api.frame.unpin', 'api.oauth.profile', 'api.oauth.usage', 'api.oauth.usage.account-file']);
       assert.equal(new Set(OPERATIONS.map((o) => `${o.service}.${o.name}`)).size, OPERATIONS.length);
     });
 
@@ -216,6 +219,64 @@ describe('swttch-ext api', () => {
         const result = await run('pin', { slug });
         assert.equal(result.ok, false, `"${slug}" got through`);
       }
+      assert.equal(seen.length, 0);
+    });
+  });
+  // `ccb oauth usage` and `ccb oauth profile`, as calls of this command: `ccb` is the old name for the
+  // account half of this package, and everything it does has to be doable here.
+  describe('oauth (what ccb oauth used to do)', () => {
+    const oauth = (name: string, values: Record<string, string> = {}) =>
+      runOperation('oauth', name, values, { baseUrl, token: 'tok' });
+
+    it('lists usage and profile as calls, with capabilities a caller can look for', () => {
+      const caps = operationCapabilities();
+      for (const expected of ['api.oauth.usage', 'api.oauth.usage.account-file', 'api.oauth.profile']) {
+        assert.ok(caps.includes(expected), `${expected} is missing`);
+      }
+      assert.equal(findOperation('oauth', 'usage')?.destructive, false);
+      assert.equal(findOperation('oauth', 'profile')?.destructive, false);
+    });
+
+    it('usage gets the limits from the oauth usage path, with the login and the oauth beta flag', async () => {
+      respond = (_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"five_hour":{"utilization":11,"resets_at":null}}'); };
+      const result = await oauth('usage');
+      assert.deepEqual(result, { ok: true, data: { five_hour: { utilization: 11, resets_at: null } } });
+      assert.deepEqual([seen[0].method, seen[0].url], ['GET', '/api/oauth/usage']);
+      assert.equal(seen[0].headers.authorization, 'Bearer tok');
+      assert.equal(seen[0].headers['anthropic-beta'], 'oauth-2025-04-20');
+    });
+
+    it('profile gets the account profile', async () => {
+      respond = (_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"account":{"email":"a@b.c"}}'); };
+      assert.deepEqual(await oauth('profile'), { ok: true, data: { account: { email: 'a@b.c' } } });
+      assert.deepEqual([seen[0].method, seen[0].url], ['GET', '/api/oauth/profile']);
+    });
+
+    it('usage with --account-file reads that saved account instead of the active login, and does not send the path', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'ext-account-'));
+      try {
+        const file = join(dir, 'snapshot.json');
+        await writeFile(file, JSON.stringify({ credentials: JSON.stringify({ claudeAiOauth: { accessToken: 'snapshot-token', expiresAt: Date.now() + 3_600_000 } }) }));
+        const result = await runOperation('oauth', 'usage', { 'account-file': file }, { baseUrl });
+        assert.equal(result.ok, true);
+        assert.equal(seen[0].headers.authorization, 'Bearer snapshot-token');
+        assert.equal(seen[0].url, '/api/oauth/usage');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('an unreadable --account-file is a credentials error that never echoes the file', async () => {
+      await assert.rejects(
+        () => runOperation('oauth', 'usage', { 'account-file': '/nonexistent/snapshot.json' }, { baseUrl }),
+        (err: Error & { code?: string }) => err.code === 'credentials_not_found' && !/snapshot\.json/.test(err.message),
+      );
+      assert.equal(seen.length, 0);
+    });
+
+    it('profile takes no --account-file', async () => {
+      const result = await oauth('profile', { 'account-file': 'x' });
+      assert.equal(result.ok, false);
       assert.equal(seen.length, 0);
     });
   });

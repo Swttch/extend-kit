@@ -10,6 +10,17 @@
 | **stt** | 받아쓰기는 OAuth 토큰을 전송하는데, JetBrains 플러그인은 자격증명을 다룰 수 없습니다 |
 | **swttch-ext** | 저장된 로그인으로 내 계정에 대해 호출합니다(아티팩트: 목록, 이름 변경, 고정, 삭제. `tts`: 글을 소리로 읽기) |
 
+> **`ccb`는 옛 이름입니다.** 이 패키지는 Claude Code 사용량·계정을 보는 CLI `ccb`로 시작했고, 이제 로그인이 필요한 모든 도구를 담습니다. 전체를 담는 명령이 `swttch-ext`이고, `ccb`가 하던 것은 모두 할 수 있습니다.
+>
+> | 옛 명령 | 새 명령 |
+> | --- | --- |
+> | `ccb oauth usage` | `swttch-ext api oauth usage` |
+> | `ccb oauth profile` | `swttch-ext api oauth profile` |
+> | `ccb oauth usage --account-file=<경로>` | `swttch-ext api oauth usage --account-file <경로>` |
+> | `ccb stt` / `ccb stt --check` | `swttch-ext stt` / `swttch-ext stt --check` |
+>
+> `ccb`는 deprecated이지만 계속 동작하고 이름도 바뀌지 않습니다. `swttch-ext`는 JSON 한 개(`{"ok":true,"data":...}`)를 내고, `ccb --json`은 원본 응답을 그대로 냅니다.
+
 ## battery
 
 Claude Code의 내부 API를 래핑한 TypeScript SDK 및 CLI입니다. Claude Code 사용자의 API 사용량 및 계정 정보를 프로그래매틱하게 접근할 수 있습니다.

@@ -33,6 +33,14 @@ src/
 └── ext/            # swttch-ext 명령. 배터리가 아닌 외부 서비스 호출(아티팩트 등)과 `tts`
 ```
 
+## ★ `swttch-ext`가 이 패키지의 명령이고 `ccb`는 옛 이름이다 (deprecated)
+
+이 패키지는 처음에 계정·사용량만 다뤘고 그래서 명령 이름도 배터리(`ccb`)였다. 자격증명을 다루는 모든 형태로 넓어진 지금 `ccb`는 너무 좁은 이름이라, 확장킷 전체를 담는 명령으로 `swttch-ext`를 만들었다. 따라서:
+
+- **`swttch-ext`는 `ccb`가 하던 것을 전부 할 수 있어야 한다.** 대응표: `ccb oauth usage` = `swttch-ext api oauth usage`, `ccb oauth profile` = `swttch-ext api oauth profile`, `ccb oauth usage --account-file=<경로>` = `swttch-ext api oauth usage --account-file <경로>`, `ccb stt` = `swttch-ext stt`, `ccb --capabilities`의 `stt.stream`·`settings.env` = `swttch-ext --capabilities`에 그대로 있다. 새로 `ccb`에만 있는 기능이 생기면 버그다.
+- **`ccb`는 deprecated다. 문서에서만 그렇게 안내하고 지우거나 경고를 내지 않는다.** 아래 이름 불변 규칙이 그대로 유효하다. 출력 모양은 다르다: `ccb --json`은 원본 JSON을 그대로, `swttch-ext`는 `{"ok":...,"data":...}` 봉투로 낸다.
+- 새 호출자(플러그인 쪽 포함)는 `swttch-ext`를 쓴다. 플러그인 백엔드가 아직 `ccb`를 부르는 곳은 옮겨야 할 일이며, 옮기기 전까지 `ccb`를 없애지 않는다.
+
 ## ★ `ccb` 명령 이름은 바꾸지 않는다
 
 `ccb`는 **사용자가 터미널에 직접 타이핑하고, 플러그인 백엔드가 `Command('ccb', ...)` 로 exec하는 이름**이다. 리브랜딩을 이유로 바꾸면:

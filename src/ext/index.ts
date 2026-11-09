@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { applySettingsEnv } from '../settings-env.js';
 import { OPERATIONS, operationCapabilities } from './operations.js';
 import { describeError, runOperation, type ApiResult } from './run.js';
+import { sttCommand } from '../cli/stt.js';
 import { runTextToSpeech, printVoiceSettings, TTS_CAPABILITY, TTS_SETTINGS_CAPABILITY } from './tts.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,19 +58,31 @@ Usage: swttch-ext api <service> <call> [--param value ...] [--yes] [--json]
   swttch-ext tts [--language ko] [--speed 1.0] [--voice <name>]
                                         Read the text on stdin aloud: raw audio on stdout
   swttch-ext tts --settings             The voice, speed and language your Claude account has chosen, as JSON
+  swttch-ext stt [--language=ko] [--keyterms=a,b] [--interims]
+                                        Dictation: raw 16 kHz mono PCM on stdin, one JSON line per event on stdout
+  swttch-ext stt --check                Whether this machine can dictate
+  swttch-ext api oauth usage [--account-file <path>]
+                                        Your usage limits (5-hour and weekly)
+  swttch-ext api oauth profile          Your account profile
   swttch-ext api frame retitle --slug <id> --title "New name"
   swttch-ext api frame pin --slug <id>
   swttch-ext api frame delete --slug <id> --yes
 
 Every call prints one JSON object: {"ok":true,"data":...} or {"ok":false,"error":{...}}.
-A call that cannot be undone refuses to run without --yes.`;
+A call that cannot be undone refuses to run without --yes.
+
+ccb is the old name of the account half of this package. It still works and will not change,
+but everything it did is here: ccb oauth usage = swttch-ext api oauth usage, ccb oauth profile =
+swttch-ext api oauth profile, ccb stt = swttch-ext stt. New callers should use swttch-ext.`;
 
 async function main(): Promise<number> {
   const { positionals, values, flags, env } = parseOptions(args);
 
   if (flags.has('version')) { console.log(VERSION); return 0; }
   if (flags.has('capabilities')) {
-    console.log(JSON.stringify({ capabilities: [...operationCapabilities(), TTS_CAPABILITY, TTS_SETTINGS_CAPABILITY] }));
+    // `stt.stream` and `settings.env` are what `ccb --capabilities` reports for dictation and for applying
+    // Claude Code's settings env block; a caller that moved from ccb looks for the same names.
+    console.log(JSON.stringify({ capabilities: [...operationCapabilities(), 'stt.stream', 'settings.env', TTS_CAPABILITY, TTS_SETTINGS_CAPABILITY] }));
     return 0;
   }
   if (flags.has('help') || positionals.length === 0) { console.log(HELP); return 0; }
@@ -80,6 +93,19 @@ async function main(): Promise<number> {
     await applySettingsEnv(process.cwd(), new Set(env.map(([name]) => name)));
     if (values.settings !== undefined) return printVoiceSettings();
     return runTextToSpeech({ language: values.language, speed: values.speed, voice: values.voice });
+  }
+  if (command === 'stt') {
+    for (const [name, value] of env) process.env[name] = value;
+    await applySettingsEnv(process.cwd(), new Set(env.map(([name]) => name)));
+    // sttCommand reads `--name=value` forms and flags from the raw arguments, as ccb passes them.
+    const sttArgs = args.slice(args.indexOf('stt') + 1).map((a) => a);
+    const normalized = [
+      ...(values.language !== undefined ? [`--language=${values.language}`] : []),
+      ...(values.keyterms !== undefined ? [`--keyterms=${values.keyterms}`] : []),
+      ...sttArgs.filter((a) => a.startsWith('--language=') || a.startsWith('--keyterms=') || a === '--interims' || a === '--check'),
+    ];
+    const unique = [...new Set(normalized)];
+    return sttCommand([], unique, new Set(unique.filter((a) => a.startsWith('--') && !a.includes('='))), false);
   }
   if (command !== 'api') { console.error(`Unknown command: ${command}\n\n${HELP}`); return 1; }
 

@@ -1,6 +1,7 @@
 import { getCredentials, getAccessToken } from '../battery/auth/index.js';
 import { requestJson, proxyInUseFor } from '../battery/api/http.js';
 import { CcbError } from '../battery/errors.js';
+import { getAccountCredentials } from '../cli/account-credentials.js';
 import { findOperation, type Operation } from './operations.js';
 
 /** What `swttch-ext api` prints: one object on stdout, whatever happened. */
@@ -85,6 +86,7 @@ function buildRequest(op: Operation, values: Record<string, string>): { path: st
   for (const param of op.params) {
     const value = values[param.name];
     if (value === undefined) continue;
+    if (param.in === 'local') continue;
     if (param.in === 'path') path = path.replace(`{${param.name}}`, encodeURIComponent(value));
     else if (param.in === 'query') query.push(`${encodeURIComponent(param.name)}=${encodeURIComponent(value)}`);
     else body[param.name] = value;
@@ -115,7 +117,9 @@ export async function runOperation(
     return fail('confirmation_required', `${op.service} ${op.name} cannot be undone. Run it again with --yes to go ahead.`);
   }
 
-  const token = options.token ?? getAccessToken(await getCredentials());
+  // A saved-account snapshot (`--account-file`) names whose login this call uses; otherwise it is the active one.
+  const accountFile = values['account-file'];
+  const token = options.token ?? getAccessToken(accountFile ? await getAccountCredentials(accountFile) : await getCredentials());
   const request = buildRequest(op, values);
   const url = `${resolveBaseUrl(options.baseUrl)}${request.path}`;
   const headers = {

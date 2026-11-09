@@ -22,8 +22,8 @@ export interface ParamSpec {
   about: string;
   /** Longest value accepted, so a runaway argument is refused here and not by the server. */
   maxLength: number;
-  /** The path segment this value fills, the body field it becomes, or the query parameter it is. */
-  in: 'path' | 'body' | 'query';
+  /** The path segment this value fills, the body field it becomes, the query parameter it is, or (`local`) a choice made on this machine that is never sent. */
+  in: 'path' | 'body' | 'query' | 'local';
   /** For a `digits` value: the largest number accepted. */
   max?: number;
 }
@@ -44,6 +44,8 @@ export interface Operation {
   params: ParamSpec[];
   /** The capability name a caller can look for in `--capabilities`. */
   capability: string;
+  /** More capability names this call provides, when a parameter adds something a caller may need to detect. */
+  extraCapabilities?: string[];
   /** Changes or removes something that cannot be put back; refuses to run without `--yes`. */
   destructive: boolean;
   /** Answers to a status that say more than the status does. */
@@ -69,6 +71,33 @@ const NOT_OWNER_OR_GONE: ErrorRule = {
 };
 
 export const OPERATIONS: Operation[] = [
+  // The account half of this package, from when it was only `ccb`: usage limits and the profile.
+  // These are the calls `ccb oauth usage` and `ccb oauth profile` make, so `ccb` can be retired.
+  {
+    service: 'oauth',
+    name: 'usage',
+    method: 'GET',
+    path: '/api/oauth/usage',
+    params: [
+      { name: 'account-file', kind: 'string', required: false, about: 'Read the usage of a Swttch saved-account snapshot instead of the active login (no account switch)', maxLength: 4096, in: 'local' },
+    ],
+    capability: 'api.oauth.usage',
+    extraCapabilities: ['api.oauth.usage.account-file'],
+    destructive: false,
+    errors: [],
+    about: 'Show your usage limits: the 5-hour and weekly buckets, with percent used and when each resets',
+  },
+  {
+    service: 'oauth',
+    name: 'profile',
+    method: 'GET',
+    path: '/api/oauth/profile',
+    params: [],
+    capability: 'api.oauth.profile',
+    destructive: false,
+    errors: [],
+    about: 'Show your account profile: name, email, plan and organization',
+  },
   {
     service: 'frame',
     name: 'list',
@@ -160,5 +189,5 @@ export function findOperation(service: string, name: string): Operation | undefi
 
 /** Every capability name the table provides, for `--capabilities`. */
 export function operationCapabilities(): string[] {
-  return OPERATIONS.map((op) => op.capability);
+  return OPERATIONS.flatMap((op) => [op.capability, ...(op.extraCapabilities ?? [])]);
 }
