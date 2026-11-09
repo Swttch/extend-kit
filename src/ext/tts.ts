@@ -3,6 +3,9 @@ import { openTextToSpeechStream, readAccountVoiceSettings, chooseVoiceOptions } 
 /** The name `--capabilities` lists for this command, so the plugin can tell a kit that has it from one that does not. */
 export const TTS_CAPABILITY = 'tts';
 
+/** Listed when `tts --settings` exists, so a caller never runs it against a kit that would wait on stdin instead. */
+export const TTS_SETTINGS_CAPABILITY = 'tts.settings';
+
 /**
  * `swttch-ext tts` — reading text aloud as a process, not as a library.
  *

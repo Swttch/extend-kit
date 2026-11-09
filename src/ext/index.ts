@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { applySettingsEnv } from '../settings-env.js';
 import { OPERATIONS, operationCapabilities } from './operations.js';
 import { describeError, runOperation, type ApiResult } from './run.js';
-import { runTextToSpeech, printVoiceSettings, TTS_CAPABILITY } from './tts.js';
+import { runTextToSpeech, printVoiceSettings, TTS_CAPABILITY, TTS_SETTINGS_CAPABILITY } from './tts.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VERSION: string = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8')).version;
@@ -69,7 +69,7 @@ async function main(): Promise<number> {
 
   if (flags.has('version')) { console.log(VERSION); return 0; }
   if (flags.has('capabilities')) {
-    console.log(JSON.stringify({ capabilities: [...operationCapabilities(), TTS_CAPABILITY] }));
+    console.log(JSON.stringify({ capabilities: [...operationCapabilities(), TTS_CAPABILITY, TTS_SETTINGS_CAPABILITY] }));
     return 0;
   }
   if (flags.has('help') || positionals.length === 0) { console.log(HELP); return 0; }
