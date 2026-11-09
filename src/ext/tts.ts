@@ -60,3 +60,14 @@ export async function runTextToSpeech(options: { language?: string; speed?: stri
     });
   });
 }
+
+/**
+ * `swttch-ext tts --settings` — the voice, speed and language the Claude account has chosen, as one JSON object:
+ * `{"ok":true,"data":{"voice":"buttery","speed":1.2,"language":null}}`. A field the account has not set is null.
+ * Lets a caller show what reading aloud will use when it is not told otherwise.
+ */
+export async function printVoiceSettings(): Promise<number> {
+  const settings = await readAccountVoiceSettings();
+  process.stdout.write(`${JSON.stringify({ ok: true, data: { voice: settings.voice ?? null, speed: settings.speed ?? null, language: settings.language ?? null } })}\n`);
+  return 0;
+}

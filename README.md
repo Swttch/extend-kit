@@ -64,6 +64,8 @@ Reads the text on stdin aloud with the same voice service the Claude desktop app
 echo "Hello from the terminal." | swttch-ext tts | play -t raw -r 16000 -e signed -b 16 -c 1 -
 ```
 
+`swttch-ext tts --settings` prints what your account has chosen (`{"ok":true,"data":{"voice","speed","language"}}`, null for what is not set).
+
 Options: `--language <code>` (a hint such as `ko`), `--speed <0.7-1.5>`, `--voice <name>`. What you do not name comes from your Claude account's own voice settings (the voice, speed and language chosen in the Claude desktop app, read from `/api/oauth/account/settings`; nothing is written back), so a voice picked there is the voice heard here. An account voice made for one language (such as `ko-balgeun`) is left out for text in another. It exits 0 when everything was read and 1 on failure, with one JSON line on stderr: `{"ok":false,"error":{"code","message","fatal"}}`. Killing the process stops the reading.
 
 ### Finding out what this version can do

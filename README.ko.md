@@ -64,6 +64,8 @@ swttch-ext api frame delete --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --yes
 echo "터미널에서 읽어 줍니다." | swttch-ext tts --language ko | play -t raw -r 16000 -e signed -b 16 -c 1 -
 ```
 
+`swttch-ext tts --settings`는 계정에 저장된 값을 보여 줍니다(`{"ok":true,"data":{"voice","speed","language"}}`, 정해지지 않은 것은 null).
+
 옵션: `--language <코드>`(`ko` 같은 힌트), `--speed <0.7~1.5>`, `--voice <이름>`. 따로 정하지 않은 것은 Claude 계정의 음성 설정(데스크탑 앱에서 고른 목소리·속도·언어. `/api/oauth/account/settings`에서 읽고, 아무것도 다시 쓰지 않습니다)을 따르므로, 데스크탑에서 고른 목소리가 여기서도 들립니다. `ko-balgeun`처럼 한 언어용 계정 목소리는 다른 언어의 글에서는 쓰지 않습니다. 다 읽으면 0으로, 실패하면 1로 끝나며 표준 오류에 한 줄 JSON(`{"ok":false,"error":{"code","message","fatal"}}`)을 씁니다. 프로세스를 끄면 읽기가 멈춥니다.
 
 ### 이 버전이 할 수 있는 일 알아보기

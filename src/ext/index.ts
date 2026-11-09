@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { applySettingsEnv } from '../settings-env.js';
 import { OPERATIONS, operationCapabilities } from './operations.js';
 import { describeError, runOperation, type ApiResult } from './run.js';
-import { runTextToSpeech, TTS_CAPABILITY } from './tts.js';
+import { runTextToSpeech, printVoiceSettings, TTS_CAPABILITY } from './tts.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VERSION: string = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8')).version;
@@ -56,6 +56,7 @@ Usage: swttch-ext api <service> <call> [--param value ...] [--yes] [--json]
   swttch-ext --capabilities             List what this version can do, as JSON
   swttch-ext tts [--language ko] [--speed 1.0] [--voice <name>]
                                         Read the text on stdin aloud: raw audio on stdout
+  swttch-ext tts --settings             The voice, speed and language your Claude account has chosen, as JSON
   swttch-ext api frame retitle --slug <id> --title "New name"
   swttch-ext api frame pin --slug <id>
   swttch-ext api frame delete --slug <id> --yes
@@ -77,6 +78,7 @@ async function main(): Promise<number> {
   if (command === 'tts') {
     for (const [name, value] of env) process.env[name] = value;
     await applySettingsEnv(process.cwd(), new Set(env.map(([name]) => name)));
+    if (values.settings !== undefined) return printVoiceSettings();
     return runTextToSpeech({ language: values.language, speed: values.speed, voice: values.voice });
   }
   if (command !== 'api') { console.error(`Unknown command: ${command}\n\n${HELP}`); return 1; }
