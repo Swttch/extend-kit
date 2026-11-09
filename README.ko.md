@@ -8,7 +8,7 @@
 | --- | --- |
 | **battery** | *사용자 본인의* 머신에 저장된 Claude Code 로그인 정보(keychain 또는 자격증명 파일)를 읽어야 합니다 |
 | **stt** | 받아쓰기는 OAuth 토큰을 전송하는데, JetBrains 플러그인은 자격증명을 다룰 수 없습니다 |
-| **swttch-ext** | 저장된 로그인으로 내 계정에 대해 호출합니다(아티팩트: 목록, 이름 변경, 고정, 삭제) |
+| **swttch-ext** | 저장된 로그인으로 내 계정에 대해 호출합니다(아티팩트: 목록, 이름 변경, 고정, 삭제. `tts`: 글을 소리로 읽기) |
 
 ## battery
 
@@ -55,6 +55,16 @@ swttch-ext api frame delete --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --yes
 - **`delete`는 `--yes` 없이는 아무것도 하지 않고** `confirmation_required`로 답합니다.
 - **`<title>`이 없는 페이지는 이름을 바꿀 수 없습니다**(`rejected`). 페이지에 `<title>`을 넣고 다시 게시한 뒤에 바꾸세요.
 - 이름 변경·고정·삭제는 내가 소유한 아티팩트에만 됩니다. 남의 것은 `not_found`로 답합니다.
+
+### 글을 소리로 읽기: `swttch-ext tts`
+
+표준 입력으로 받은 글을 Claude 데스크탑 앱의 "소리 내어 읽기"와 같은 음성 서비스로 읽고, 소리를 원시 PCM(16비트 리틀엔디언, 16kHz, 모노)으로 표준 출력에 내보냅니다. API 키가 아니라 Claude 계정 로그인이 필요합니다. 엔드포인트는 공식 문서에 없습니다.
+
+```bash
+echo "터미널에서 읽어 줍니다." | swttch-ext tts --language ko | play -t raw -r 16000 -e signed -b 16 -c 1 -
+```
+
+옵션: `--language <코드>`(`ko` 같은 힌트), `--speed <0.7~1.5>`, `--voice <이름>`. 다 읽으면 0으로, 실패하면 1로 끝나며 표준 오류에 한 줄 JSON(`{"ok":false,"error":{"code","message","fatal"}}`)을 씁니다. 프로세스를 끄면 읽기가 멈춥니다.
 
 ### 이 버전이 할 수 있는 일 알아보기
 

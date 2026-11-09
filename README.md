@@ -8,7 +8,7 @@ The companion tools [Swttch](https://github.com/Swttch/swttch) needs but cannot 
 | --- | --- |
 | **battery** | Reads the Claude Code login stored on *your* machine (keychain, or a credentials file) |
 | **stt** | Dictation sends your OAuth token, and a JetBrains plugin may not handle credentials |
-| **swttch-ext** | Acts on your account with the saved login (artifacts: list, rename, pin, delete) |
+| **swttch-ext** | Acts on your account with the saved login (artifacts: list, rename, pin, delete; `tts`: read text aloud) |
 
 ## battery
 
@@ -55,6 +55,16 @@ swttch-ext api frame delete --slug 3627498c-4893-4ce8-bfaf-524f7b041c1d --yes
 - **`delete` does nothing without `--yes`.** It answers `confirmation_required` instead.
 - **A page with no `<title>` cannot be renamed** (`rejected`): add a `<title>` to the page and publish it again first.
 - Only artifacts you own can be renamed, pinned or deleted; for anyone else's the answer is `not_found`.
+
+### Reading text aloud: `swttch-ext tts`
+
+Reads the text on stdin aloud with the same voice service the Claude desktop app's "Read aloud" uses, and writes the audio to stdout as raw PCM (16-bit little-endian, 16 kHz, mono). It needs a Claude account login, not an API key. The endpoint is undocumented.
+
+```bash
+echo "Hello from the terminal." | swttch-ext tts | play -t raw -r 16000 -e signed -b 16 -c 1 -
+```
+
+Options: `--language <code>` (a hint such as `ko`), `--speed <0.7-1.5>`, `--voice <name>`. It exits 0 when everything was read and 1 on failure, with one JSON line on stderr: `{"ok":false,"error":{"code","message","fatal"}}`. Killing the process stops the reading.
 
 ### Finding out what this version can do
 

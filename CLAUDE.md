@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |------|-----------------|
 | `battery` | 사용자 머신의 Claude Code 로그인 자격증명(keychain/파일)을 읽어야 함 |
 | `stt` | 받아쓰기가 OAuth 토큰을 전송하는데, JetBrains 플러그인은 자격증명을 다룰 수 없음 |
+| `tts` | 소리 내어 읽기가 OAuth 토큰을 전송하는데, JetBrains 플러그인은 자격증명을 다룰 수 없음 |
 
 번들링 가능한 기능이면 여기 오면 안 되고, 플러그인 본체에 넣는다.
 
@@ -28,7 +29,8 @@ src/
 ├── stt/            # 음성 입력 (예정, 현재 비어 있음)
 ├── settings-env.ts # Claude Code 설정파일의 env 블록을 process.env에 적용
 ├── cli/            # ccb 명령. battery를 호출한다
-└── ext/            # swttch-ext 명령. 배터리가 아닌 외부 서비스 호출(아티팩트 등)
+├── tts/            # 글을 소리로 읽기(데스크탑 "소리 내어 읽기"와 같은 서비스). `swttch-ext tts`가 부른다
+└── ext/            # swttch-ext 명령. 배터리가 아닌 외부 서비스 호출(아티팩트 등)과 `tts`
 ```
 
 ## ★ `ccb` 명령 이름은 바꾸지 않는다
