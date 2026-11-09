@@ -1,4 +1,4 @@
-import { openTextToSpeechStream } from '../tts/index.js';
+import { openTextToSpeechStream, readAccountVoiceSettings, chooseVoiceOptions } from '../tts/index.js';
 
 /** The name `--capabilities` lists for this command, so the plugin can tell a kit that has it from one that does not. */
 export const TTS_CAPABILITY = 'tts';
@@ -10,6 +10,9 @@ export const TTS_CAPABILITY = 'tts';
  * ── stdout ── raw audio and nothing else: 16-bit little-endian PCM, 16 kHz, mono, as it arrives.
  * ── stderr ── on failure, one JSON line: {"ok":false,"error":{"code","message","fatal"}}.
  * ── exit ───  0 when the service said everything, 1 when it failed. Killing the process stops the reading.
+ *
+ * What the caller does not name comes from the Claude account's own voice settings (the voice, speed and language
+ * chosen in the desktop app), so a voice picked there is the voice heard here.
  *
  * A terminal user can drive it by hand (macOS):
  *
@@ -23,7 +26,11 @@ export async function runTextToSpeech(options: { language?: string; speed?: stri
   for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk as Buffer));
   const text = Buffer.concat(chunks).toString('utf8');
 
-  const speed = options.speed === undefined || options.speed === '' ? undefined : Number(options.speed);
+  const askedSpeed = options.speed === undefined || options.speed === '' ? undefined : Number(options.speed);
+  const chosen = chooseVoiceOptions(
+    { voice: options.voice || undefined, speed: askedSpeed, language: options.language || undefined },
+    await readAccountVoiceSettings(),
+  );
 
   return new Promise<number>((resolve) => {
     const stopOnPipeClosed = (): void => {
@@ -44,7 +51,7 @@ export async function runTextToSpeech(options: { language?: string; speed?: stri
           resolve(1);
         },
       },
-      { language: options.language || undefined, voice: options.voice || undefined, speed },
+      chosen,
     ).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       process.stderr.write(`${JSON.stringify({ ok: false, error: { code: 'not_logged_in', message, fatal: true } })}\n`);

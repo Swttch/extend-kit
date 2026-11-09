@@ -5,3 +5,5 @@
  */
 export { openTextToSpeechStream, isTextToSpeechAvailable, splitForSpeech, SPEECH_AUDIO_FORMAT, SPEECH_SPEED_RANGE } from './stream.js';
 export type { TextToSpeechOptions, TextToSpeechHandlers, TextToSpeechStream } from './stream.js';
+export { readAccountVoiceSettings, chooseVoiceOptions, pickVoiceSettings } from './accountVoice.js';
+export type { AccountVoiceSettings } from './accountVoice.js';
