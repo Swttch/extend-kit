@@ -30,10 +30,11 @@ export async function runTextToSpeech(options: { language?: string; speed?: stri
   const text = Buffer.concat(chunks).toString('utf8');
 
   const askedSpeed = options.speed === undefined || options.speed === '' ? undefined : Number(options.speed);
-  const chosen = chooseVoiceOptions(
-    { voice: options.voice || undefined, speed: askedSpeed, language: options.language || undefined },
-    await readAccountVoiceSettings(),
-  );
+  const asked = { voice: options.voice || undefined, speed: askedSpeed, language: options.language || undefined };
+  // The account is asked only for what the caller left out: a voice and a speed that were both named need no answer,
+  // and waiting on one (it has a deadline of its own) would only delay the first word.
+  const account = asked.voice !== undefined && asked.speed !== undefined ? {} : await readAccountVoiceSettings();
+  const chosen = chooseVoiceOptions(asked, account);
 
   return new Promise<number>((resolve) => {
     const stopOnPipeClosed = (): void => {
